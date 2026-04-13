@@ -169,7 +169,6 @@ export default function TasksView({ showToast }: Props) {
             <span className="chip chip-label">{task.client_name}</span>
             <span className={`chip ${task.resp === 'Ellen Maximiano' ? 'chip-ellen' : 'chip-andrews'}`}>{task.resp}</span>
             <span className={`chip ${task.tipo === 'prev' ? 'chip-p' : task.tipo === 'contab' ? 'chip-c' : task.tipo === 'cliente' ? 'chip-g' : 'chip-i'}`}>{TIPO_LABEL[task.tipo] || task.tipo}</span>
-            {task.sync_grouppo === 'contab' ? 'chip-c' : task.tipo === 'cliente' ? 'chip-g' : 'chip-i'}`}>{TIPO_LABEL[task.tipo] || task.tipo}</span>
             {task.sync_group && <span className="chip chip-s">Sync</span>}
           </div>
         </div>
