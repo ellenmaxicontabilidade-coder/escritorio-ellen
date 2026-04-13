@@ -47,7 +47,7 @@ export default function ClientsView({ showToast }: Props) {
     setShowModal(true)
   }
 
-  function toggleBadge(b: string) {
+  function toggleBadge(b: Badge) {
     setForm(p => {
       const has = p.badges.includes(b)
       const badges = has ? p.badges.filter(x => x !== b) : [...p.badges, b]
@@ -147,8 +147,8 @@ export default function ClientsView({ showToast }: Props) {
                 <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
                   {[['pf','PF','#E6F1FB','#0C447C','#85B7EB'],['pj','PJ','#FAEEDA','#633806','#EF9F27'],['rep','Representante','#EAF3DE','#27500A','#97C459']].map(([k,l,bg,cl,bc]) => {
                     const label = k === 'rep' ? 'Representante' : l
-                    const on = form.badges.includes(label)
-                    return <div key={k} onClick={() => toggleBadge(label)} style={{ padding:'7px 14px', border:`0.5px solid ${on ? bc : 'var(--border-medium)'}`, borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:500, background: on ? bg : 'var(--bg-secondary)', color: on ? cl : 'var(--text-secondary)' }}>{label}</div>
+                    const on = form.badges.includes(label as Badge)
+                    return <div key={k} onClick={() => toggleBadge(label as Badge)} style={{ padding:'7px 14px', border:`0.5px solid ${on ? bc : 'var(--border-medium)'}`, borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:500, background: on ? bg : 'var(--bg-secondary)', color: on ? cl : 'var(--text-secondary)' }}>{label}</div>
                   })}
                 </div>
               </div>
