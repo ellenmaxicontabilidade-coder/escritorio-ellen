@@ -6,7 +6,7 @@ import { MNS, DLONG, toISO, pad, TIPO_LABEL, chipResp } from '@/lib/utils'
 import type { Task, Client } from '@/lib/types'
 
 const TODAY = toISO(new Date())
-const DNS7 = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const DNS7 = ['Dom','Seg','Ter','Qua','Qui','Sex','SÃ¡b']
 
 interface Props { showToast: (msg: string, type?: 'success' | 'danger') => void }
 
@@ -47,9 +47,9 @@ export default function TasksView({ showToast }: Props) {
     const cli = clients.find(c => c.id === form.clientId)
     await createTask({
       title: form.title,
-      client_name: cli?.name || '—',
+      client_name: cli?.name || 'â',
       client_id: form.clientId || undefined,
-      service: form.service || '—',
+      service: form.service || 'â',
       resp: form.resp as any,
       tipo: form.area as any,
       priority: form.priority as any,
@@ -81,14 +81,14 @@ export default function TasksView({ showToast }: Props) {
     const rem = (first + dim) % 7 === 0 ? 0 : 7 - ((first + dim) % 7)
     for (let i = 1; i <= rem; i++) cells.push({ d: i, iso: null })
     return cells
-    }
+  }
 
   const fl = filtered()
   const pending = fl.filter(t => !t.done)
   const done = fl.filter(t => t.done)
   const d = new Date(selDay + 'T12:00')
   const dateLabel = selDay === TODAY
-    ? `Hoje — ${d.getDate()} de ${MNS[d.getMonth()]} de ${d.getFullYear()}`
+    ? `Hoje â ${d.getDate()} de ${MNS[d.getMonth()]} de ${d.getFullYear()}`
     : `${DLONG[d.getDay()]}, ${d.getDate()} de ${MNS[d.getMonth()]} de ${d.getFullYear()}`
 
   function renderTask(task: Task) {
@@ -116,14 +116,14 @@ export default function TasksView({ showToast }: Props) {
         <button className={`btn ${selDay === TODAY ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSelDay(TODAY)}>Hoje</button>
         <div style={{ position:'relative' }}>
           <button className={`btn btn-secondary ${selDay !== TODAY ? 'active' : ''}`} onClick={() => setShowCal(v => !v)}>
-            📅 {selDay !== TODAY ? `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}` : 'Escolher data'}
+            ð {selDay !== TODAY ? `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}` : 'Escolher data'}
           </button>
           {showCal && (
             <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, background:'var(--bg-primary)', border:'0.5px solid var(--border-medium)', borderRadius:'var(--radius-xl)', overflow:'hidden', zIndex:200, width:280 }}>
               <div style={{ padding:'10px 14px', borderBottom:'0.5px solid var(--border-light)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth - 1, y = tcpYear; if (m < 0) { m = 11; y-- } setTcpMonth(m); setTcpYear(y) }}>←</button>
+                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth - 1, y = tcpYear; if (m < 0) { m = 11; y-- } setTcpMonth(m); setTcpYear(y) }}>â</button>
                 <span style={{ fontSize:13, fontWeight:500 }}>{MNS[tcpMonth]} {tcpYear}</span>
-                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth + 1, y = tcpYear; if (m > 11) { m = 0; y++ } setTcpMonth(m); setTcpYear(y) }}>→</button>
+                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth + 1, y = tcpYear; if (m > 11) { m = 0; y++ } setTcpMonth(m); setTcpYear(y) }}>â</button>
               </div>
               <div style={{ padding:'8px 10px 12px' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:4 }}>
@@ -144,16 +144,16 @@ export default function TasksView({ showToast }: Props) {
       </div>
 
       <div style={{ position:'relative', marginBottom:'1rem' }}>
-        <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-tertiary)', pointerEvents:'none' }}>🔍</span>
+        <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-tertiary)', pointerEvents:'none' }}>ð</span>
         <input style={{ width:'100%', padding:'9px 12px 9px 32px', fontSize:13, border:'0.5px solid var(--border-medium)', borderRadius:'var(--radius-md)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none', fontFamily:'inherit' }} placeholder="Buscar tarefa ou cliente..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       <div style={{ fontSize:14, fontWeight:500, marginBottom:'1rem' }}>
-        {selDay === TODAY ? 'Hoje — ' : ''}<span style={{ color:'var(--purple-600)' }}>{d.getDate()} de {MNS[d.getMonth()]} de {d.getFullYear()}</span>
+        {selDay === TODAY ? 'Hoje â ' : ''}<span style={{ color:'var(--purple-600)' }}>{d.getDate()} de {MNS[d.getMonth()]} de {d.getFullYear()}</span>
       </div>
 
       <div style={{ display:'flex', gap:5, marginBottom:'1rem', flexWrap:'wrap' }}>
-        {[['all','Todas'],['sync','Sincronizadas'],['Ellen Maximiano','Ellen'],['Andrews Maximiano','Andrews'],['prev','Previdenciário'],['contab','Contabilidade']].map(([v,l]) => (
+        {[['all','Todas'],['sync','Sincronizadas'],['Ellen Maximiano','Ellen'],['Andrews Maximiano','Andrews'],['prev','PrevidenciÃ¡rio'],['contab','Contabilidade']].map(([v,l]) => (
           <button key={v} onClick={() => setFlt(v)} style={{ padding:'4px 10px', fontSize:11, fontWeight:500, border:'0.5px solid var(--border-medium)', borderRadius:20, cursor:'pointer', background: flt === v ? 'var(--bg-secondary)' : 'transparent', color: flt === v ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{l}</button>
         ))}
       </div>
@@ -168,7 +168,7 @@ export default function TasksView({ showToast }: Props) {
           )}
           {done.length > 0 && (
             <div style={{ marginBottom:'1.25rem' }}>
-              <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>Concluído ({done.length})</div>
+              <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>ConcluÃ­do ({done.length})</div>
               <div className="card">{done.map(renderTask)}</div>
             </div>
           )}
@@ -183,36 +183,36 @@ export default function TasksView({ showToast }: Props) {
           <div className="modal-box">
             <div className="modal-header">
               <div className="modal-title">Nova tarefa</div>
-              <button className="btn btn-icon btn-ghost" onClick={() => setShowModal(false)}>✕</button>
+              <button className="btn btn-icon btn-ghost" onClick={() => setShowModal(false)}>â</button>
             </div>
             <div className="modal-body">
-              <div className="form-field"><label className="form-label">Descrição</label><input className="form-input" placeholder="Ex: Análise BPC..." value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} /></div>
+              <div className="form-field"><label className="form-label">DescriÃ§Ã£o</label><input className="form-input" placeholder="Ex: AnÃ¡lise BPC..." value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} /></div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div className="form-field"><label className="form-label">Data</label><input className="form-input" type="date" value={form.date} onChange={e => setForm(p => ({...p, date: e.target.value}))} /></div>
+                <div className="form-field"><label className="form-label">HorÃ¡rio</label><input className="form-input" type="time" value={form.time} onChange={e => setForm(p => ({...p, time: e.target.value}))} /></div>
+              </div>
               <div className="form-field"><label className="form-label">Cliente</label>
                 <select className="form-input" value={form.clientId} onChange={e => setForm(p => ({...p, clientId: e.target.value}))}>
-                  <option value="">— Selecionar —</option>
+                  <option value="">â Selecionar â</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="form-field"><label className="form-label">Serviço</label><input className="form-input" placeholder="Ex: IRPF 2025, BPC LOAS..." value={form.service} onChange={e => setForm(p => ({...p, service: e.target.value}))} /></div>
-              <div className="form-field"><label className="form-label">Área</label>
+              <div className="form-field"><label className="form-label">ServiÃ§o</label><input className="form-input" placeholder="Ex: IRPF 2025, BPC LOAS..." value={form.service} onChange={e => setForm(p => ({...p, service: e.target.value}))} /></div>
+              <div className="form-field"><label className="form-label">Ãrea</label>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {[['prev','Previdenciário','#E6F1FB','#0C447C','#85B7EB'],['contab','Contabilidade','#EEEDFE','#3C3489','#AFA9EC'],['assess','Cont. | Assessoria','#FAEEDA','#633806','#EF9F27']].map(([v,l,bg,cl,bc]) => (
+                  {[['prev','PrevidenciÃ¡rio','#E6F1FB','#0C447C','#85B7EB'],['contab','Contabilidade','#EEEDFE','#3C3489','#AFA9EC'],['assess','Cont. | Assessoria','#FAEEDA','#633806','#EF9F27']].map(([v,l,bg,cl,bc]) => (
                     <div key={v} onClick={() => setForm(p => ({...p, area: v}))} style={{ padding:'7px 13px', border:`0.5px solid ${form.area === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: form.area === v ? bg : 'var(--bg-secondary)', color: form.area === v ? cl : 'var(--text-secondary)' }}>{l}</div>
                   ))}
                 </div>
               </div>
               <div className="form-field"><label className="form-label">Prioridade</label>
                 <div style={{ display:'flex', gap:6 }}>
-                  {[['alta','Alta','#FCEBEB','#A32D2D','#F09595'],['media','Média','#FAEEDA','#633806','#EF9F27'],['baixa','Baixa','#EAF3DE','#27500A','#97C459']].map(([v,l,bg,cl,bc]) => (
+                  {[['alta','Alta','#FCEBEB','#A32D2D','#F09595'],['media','MÃ©dia','#FAEEDA','#633806','#EF9F27'],['baixa','Baixa','#EAF3DE','#27500A','#97C459']].map(([v,l,bg,cl,bc]) => (
                     <div key={v} onClick={() => setForm(p => ({...p, priority: v}))} style={{ flex:1, padding:'8px 0', textAlign:'center', border:`0.5px solid ${form.priority === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: form.priority === v ? bg : 'var(--bg-secondary)', color: form.priority === v ? cl : 'var(--text-secondary)' }}>{l}</div>
                   ))}
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <div className="form-field"><label className="form-label">Data</label><input className="form-input" type="date" value={form.date} onChange={e => setForm(p => ({...p, date: e.target.value}))} /></div>
-                <div className="form-field"><label className="form-label">Horário</label><input className="form-input" type="time" value={form.time} onChange={e => setForm(p => ({...p, time: e.target.value}))} /></div>
-              </div>
-              <div className="form-field"><label className="form-label">Responsável</label>
+              <div className="form-field"><label className="form-label">ResponsÃ¡vel</label>
                 <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
                   {(['Ellen Maximiano','Andrews Maximiano'] as const).map(r => (
                     <div key={r} onClick={() => setForm(p => ({...p, resp: r}))} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', border:`0.5px solid ${form.resp === r ? 'var(--purple-400)' : 'var(--border-medium)'}`, borderRadius:'var(--radius-lg)', cursor:'pointer', background: form.resp === r ? 'var(--bg-primary)' : 'var(--bg-secondary)', position:'relative' }}>
@@ -240,4 +240,4 @@ export default function TasksView({ showToast }: Props) {
 
 function tipoCls(tipo: string) {
   return { contab:'chip-c', assessoria:'chip-a', prev:'chip-p', cliente:'chip-g', interno:'chip-i' }[tipo] || 'chip-i'
-                                                                                                                                      }
+}
