@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getClients, createClient, updateClient, deleteClient, getVinculos, createVinculo, deleteVinculosByClient } from '@/lib/db'
 import { ini, getColor, badgeCls } from '@/lib/utils'
-import type { Client, Vinculo, Badge } from '@/lib/types'
+import type { Client, Vinculo } from '@/lib/types'
 import ClientPanel from './ClientPanel'
 
 interface Props { showToast: (msg: string, type?: 'success' | 'danger') => void }
@@ -16,7 +16,7 @@ export default function ClientsView({ showToast }: Props) {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name:'', meta:'CPF', badges:[] as Badge[], obs:'', av_bg:'#EEEDFE', av_cl:'#3C3489' })
+  const [form, setForm] = useState({ name:'', meta:'CPF', badges:[] as string[], obs:'', av_bg:'#EEEDFE', av_cl:'#3C3489' })
   const [vinculos, setVinculos] = useState<Vinculo[]>([])
 
   const load = useCallback(async () => {
@@ -60,10 +60,10 @@ export default function ClientsView({ showToast }: Props) {
     if (!form.name.trim()) return
     const color = getColor(form.name)
     if (editingClient) {
-      await updateClient(editingClient.id, { ...form, av_bg: color.bg, av_cl: color.cl })
+      await updateClient(editingClient.id, { ...form, badges: form.badges as any, av_bg: color.bg, av_cl: color.cl })
       showToast(`${form.name} atualizado!`)
     } else {
-      await createClient({ ...form, av_bg: color.bg, av_cl: color.cl })
+      await createClient({ ...form, badges: form.badges as any, av_bg: color.bg, av_cl: color.cl })
       showToast(`${form.name} cadastrado!`)
     }
     setShowModal(false)
