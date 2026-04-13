@@ -256,7 +256,7 @@ body {
 .modal-title { font-size: 16px; font-weight: 500; color: var(--text-primary); }
 .modal-body {
   padding: 1.25rem 1.5rem;
-  max-height: 60vh;
+  max-height: 75vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
