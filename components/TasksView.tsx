@@ -160,7 +160,7 @@ export default function TasksView({ showToast }: Props) {
   function renderTask(task: Task) {
     const pc = task.priority === 'alta' ? '#E24B4A' : task.priority === 'media' ? '#EF9F27' : '#639922'
     return (
-      <div key={task.id} style={{ display:'flex', alignItems:'flex-start', gap:8, padding:'9px 12px', background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border-light)', opacity: task.done ? 0.45 : 1, cursor:'pointer' }} onClick={() => openDetail(task)}>
+      <div key={task.id} onClick={() => openDetail(task)} style={{ cursor:'pointer', display:'flex', alignItems:'flex-start', gap:8, padding:'9px 12px', background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border-light)', opacity: task.done ? 0.45 : 1, cursor:'pointer' }} onClick={() => openDetail(task)}>
         <div style={{ width:3, borderRadius:2, flexShrink:0, alignSelf:'stretch', background: pc }}></div>
         <div className={`checkbox ${task.done ? 'checked' : ''}`} style={{ marginTop:2 }} onClick={(e) => { e.stopPropagation(); toggleTask(task) }}></div>
         <div style={{ flex:1, minWidth:0 }}>
