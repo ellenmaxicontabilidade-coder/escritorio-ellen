@@ -32,6 +32,8 @@ export interface Service {
   nome: string
   tipo: TipoServico
   orig?: string
+  status?: 'pendente' | 'aguardando' | 'concluida'
+  notes?: string
   sync_group?: string
   subtasks?: Subtask[]
 }
