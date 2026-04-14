@@ -69,6 +69,7 @@ export const COLORS = [
 ]
 
 export function getColor(name: string) {
+  if (!name) return COLORS[0]
   const idx = name.charCodeAt(0) % COLORS.length
-  return COLORS[idx]
+  return COLORS[idx] || COLORS[0]
 }
