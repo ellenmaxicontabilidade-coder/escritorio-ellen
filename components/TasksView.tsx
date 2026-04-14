@@ -276,13 +276,61 @@ export default function TasksView({ showToast }: Props) {
           {pending.length > 0 && (
             <div style={{ marginBottom:'1.25rem' }}>
               <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>Pendente ({pending.length})</div>
-              <div className="card">{pending.map(renderTask)}</div>
+              <div className="card">{(() => {
+      const out = [];
+      let i = 0;
+      while (i < pending.length) {
+        const t = pending[i];
+        if (t.sync_group) {
+          const g = t.sync_group;
+          const grp = [];
+          while (i < pending.length && pending[i].sync_group === g) { grp.push(pending[i]); i++; }
+          out.push(
+            <div key={`sg-${g}`} style={{ border:'1px solid #E4E0F5', background:'#F7F5FC', borderRadius:8, padding:6, marginBottom:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 8px 6px', fontSize:10, fontWeight:600, color:'#6A5BA6', textTransform:'uppercase', letterSpacing:'.06em' }}>
+                <span>SINCRONIZADAS</span>
+                <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, color:'#8B7FB8' }}>Via: {grp[0].sync_orig || 'outro atendente'}</span>
+              </div>
+              {grp.map(renderTask)}
+            </div>
+          );
+        } else {
+          out.push(renderTask(t));
+          i++;
+        }
+      }
+      return out;
+    })()}</div>
             </div>
           )}
           {done.length > 0 && (
             <div style={{ marginBottom:'1.25rem' }}>
               <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>Concluído ({done.length})</div>
-              <div className="card">{done.map(renderTask)}</div>
+              <div className="card">{(() => {
+      const out = [];
+      let i = 0;
+      while (i < done.length) {
+        const t = done[i];
+        if (t.sync_group) {
+          const g = t.sync_group;
+          const grp = [];
+          while (i < done.length && done[i].sync_group === g) { grp.push(done[i]); i++; }
+          out.push(
+            <div key={`sg-${g}`} style={{ border:'1px solid #E4E0F5', background:'#F7F5FC', borderRadius:8, padding:6, marginBottom:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 8px 6px', fontSize:10, fontWeight:600, color:'#6A5BA6', textTransform:'uppercase', letterSpacing:'.06em' }}>
+                <span>SINCRONIZADAS</span>
+                <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, color:'#8B7FB8' }}>Via: {grp[0].sync_orig || 'outro atendente'}</span>
+              </div>
+              {grp.map(renderTask)}
+            </div>
+          );
+        } else {
+          out.push(renderTask(t));
+          i++;
+        }
+      }
+      return out;
+    })()}</div>
             </div>
           )}
           {pending.length === 0 && done.length === 0 && (
