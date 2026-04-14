@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { getServicesByClient, getSubtasksByService, getCommentsBySubtask, updateSubtask, createComment, createSubtask, getVinculos } from '@/lib/db'
+import { getServicesByClient, getSubtasksByService, getCommentsBySubtask, updateSubtask, toggleSubtaskWithSync, createComment, createSubtask, getVinculos } from '@/lib/db'
 import { ini, fmtDate, TIPO_LABEL, nowStr } from '@/lib/utils'
 import type { Client, Service, Subtask, Comment, Vinculo } from '@/lib/types'
 
@@ -46,7 +46,7 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
   }
 
   async function toggleSub(sub: Subtask) {
-    await updateSubtask(sub.id, { done: !sub.done })
+    await toggleSubtaskWithSync(sub.id, !sub.done)
     showToast(!sub.done ? 'Concluída!' : 'Reaberta.')
     load()
   }
