@@ -59,10 +59,10 @@ export default function ClientsView({ showToast }: Props) {
     const result: Client[][] = []
     filtered.forEach(client => {
       if (placed.has(client.id)) return
-      const vinculos = vinculosByClient[client.id] || []
-      const linkedIds = vinculos.map(v => v.linked_id)
-      const linkedClients = filtered.filter(c => linkedIds.includes(c.id) && !placed.has(c.id))
-      const group = [client, ...linkedClients]
+      const vs = vinculosByClient[client.id] || []
+      const linkedIds = vs.map(v => v.linked_id)
+      const linked = filtered.filter(c => linkedIds.includes(c.id) && !placed.has(c.id))
+      const group = [client, ...linked]
       group.forEach(c => placed.add(c.id))
       result.push(group)
     })
@@ -77,21 +77,13 @@ export default function ClientsView({ showToast }: Props) {
     closeDrawer()
   }
 
-  function openNew() {
-    resetForm()
-    setShowModal(true)
-  }
+  function openNew() { resetForm(); setShowModal(true) }
 
   async function openEdit(c: Client) {
     setEditingId(c.id)
     const meta = c.meta || ''
-    setForm({
-      name: c.name,
-      cpf: meta.includes('+') ? meta.split('+')[0].trim() : (meta === 'CPF' || meta === 'CPF + CNPJ' ? '' : meta),
-      cnpj: c.cnpj || '',
-      badges: c.badges || [],
-      obs: c.obs || ''
-    })
+    const cpfGuess = (meta === 'CPF' || meta === 'CPF + CNPJ') ? '' : meta.split('·')[0].trim()
+    setForm({ name: c.name, cpf: cpfGuess, cnpj: c.cnpj || '', badges: c.badges || [], obs: c.obs || '' })
     const vs = vinculosByClient[c.id] || await getVinculos(c.id)
     setSavedVinculos(vs)
     setPendingVinculos([])
@@ -99,13 +91,8 @@ export default function ClientsView({ showToast }: Props) {
   }
 
   function closeDrawer() {
-    setDrawerOpen(false)
-    setDrawerStep(1)
-    setDrawerTipo(null)
-    setDrawerClientId(null)
-    setDrawerRels([])
-    setDrawerOutro('')
-    setDrawerSearch('')
+    setDrawerOpen(false); setDrawerStep(1); setDrawerTipo(null); setDrawerClientId(null)
+    setDrawerRels([]); setDrawerOutro(''); setDrawerSearch('')
   }
 
   function toggleBadge(b: Badge) {
@@ -125,45 +112,28 @@ export default function ClientsView({ showToast }: Props) {
     try {
       const color = getColor(form.name)
       const payload = {
-        name: form.name.trim(),
-        meta: metaLabel(),
+        name: form.name.trim(), meta: metaLabel(),
         cnpj: form.cnpj.trim() || undefined,
-        badges: form.badges,
-        obs: form.obs,
-        av_bg: color.bg,
-        av_cl: color.cl,
+        badges: form.badges, obs: form.obs,
+        av_bg: color.bg, av_cl: color.cl,
       }
       let clientId: string
-      if (editingId) {
-        await updateClient(editingId, payload)
-        clientId = editingId
-      } else {
-        const created = await createClient(payload as any)
-        clientId = created.id
-      }
+      if (editingId) { await updateClient(editingId, payload); clientId = editingId }
+      else { const c = await createClient(payload as any); clientId = c.id }
       for (const pv of pendingVinculos) {
         await createVinculoBidirecional(clientId, pv.linked_id, pv.rels, pv.tipo, pv.outro_val)
       }
       showToast(editingId ? 'Cliente atualizado' : 'Cliente cadastrado')
-      setShowModal(false)
-      resetForm()
-      await load()
-    } catch (e: any) {
-      showToast('Erro ao salvar: ' + (e.message || e), 'danger')
-    }
+      setShowModal(false); resetForm(); await load()
+    } catch (e: any) { showToast('Erro ao salvar: ' + (e.message || e), 'danger') }
   }
 
   async function doDelete() {
     if (!confirmDelete) return
     try {
       await deleteClientCompleto(confirmDelete.id)
-      showToast('Cliente excluído')
-      setConfirmDelete(null)
-      setSelectedId(null)
-      await load()
-    } catch (e: any) {
-      showToast('Erro ao excluir: ' + (e.message || e), 'danger')
-    }
+      showToast('Cliente excluído'); setConfirmDelete(null); setSelectedId(null); await load()
+    } catch (e: any) { showToast('Erro ao excluir: ' + (e.message || e), 'danger') }
   }
 
   function confirmDrawer() {
@@ -171,11 +141,8 @@ export default function ClientsView({ showToast }: Props) {
     const linked = clients.find(c => c.id === drawerClientId)
     if (!linked) return
     setPendingVinculos(prev => [...prev, {
-      linked_id: drawerClientId,
-      linked_name: linked.name,
-      rels: drawerRels,
-      tipo: drawerTipo,
-      outro_val: drawerOutro || undefined
+      linked_id: drawerClientId, linked_name: linked.name,
+      rels: drawerRels, tipo: drawerTipo, outro_val: drawerOutro || undefined
     }])
     closeDrawer()
   }
@@ -191,20 +158,13 @@ export default function ClientsView({ showToast }: Props) {
     (!drawerSearch || c.name.toLowerCase().includes(drawerSearch.toLowerCase()))
   )
 
-  const previewColor = form.name ? getColor(form.name) : { bg: '#e5e7eb', cl: '#64748b' }
-
+  const previewColor = form.name ? getColor(form.name) : { bg: '#eef2f7', cl: '#94a3b8' }
   const selectedClient = selectedId ? clients.find(c => c.id === selectedId) : null
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-        <input
-          type="text"
-          placeholder="Buscar cliente..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}
-        />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <input type="text" className="form-input" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1 }} />
         <button onClick={openNew} className="btn btn-primary">+ Novo cliente</button>
       </div>
 
@@ -213,7 +173,7 @@ export default function ClientsView({ showToast }: Props) {
         return (
           <div key={gi} style={{ marginBottom: 14 }}>
             {label && (
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6, paddingLeft: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6, paddingLeft: 4 }}>
                 👥 {label}
               </div>
             )}
@@ -221,27 +181,22 @@ export default function ClientsView({ showToast }: Props) {
               {group.map((c, idx) => {
                 const vs = vinculosByClient[c.id] || []
                 return (
-                  <div
-                    key={c.id}
-                    onClick={() => setSelectedId(c.id)}
-                    style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: idx < group.length - 1 ? '1px solid var(--border-light, #f1f5f9)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}
-                  >
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: c.av_bg, color: c.av_cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+                  <div key={c.id} onClick={() => setSelectedId(c.id)}
+                    style={{ padding: '12px 14px', cursor: 'pointer', borderBottom: idx < group.length - 1 ? '0.5px solid var(--border-light)' : 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="avatar" style={{ width: 38, height: 38, background: c.av_bg, color: c.av_cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
                       {ini(c.name)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary, #64748b)' }}>{c.meta}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{c.meta}</div>
                       {vs.length > 0 && (
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary, #94a3b8)', marginTop: 2 }}>
-                          {vs.map(v => `↔ ${v.linked_client?.name || ''} — ${(v.rels||[]).join(', ')}`).join(' · ')}
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 3 }}>
+                          {vs.slice(0, 2).map(v => `↔ ${v.linked_client?.name || ''}`).join(' · ')}
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {(c.badges || []).map(b => (
-                        <span key={b} className={badgeCls(b)}>{b}</span>
-                      ))}
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {(c.badges || []).map(b => (<span key={b} className={badgeCls(b)}>{b}</span>))}
                     </div>
                   </div>
                 )
@@ -252,99 +207,105 @@ export default function ClientsView({ showToast }: Props) {
       })}
 
       {groups.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary, #94a3b8)' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>
           Nenhum cliente cadastrado
         </div>
       )}
 
       {selectedClient && (
-        <ClientPanel
-          client={selectedClient}
+        <ClientPanel client={selectedClient}
           onEdit={() => { setSelectedId(null); openEdit(selectedClient) }}
           onDelete={() => { setConfirmDelete(selectedClient); setSelectedId(null) }}
-          showToast={showToast}
-        />
+          showToast={showToast} />
       )}
 
       {showModal && (
         <div className="modal-overlay" onClick={() => { setShowModal(false); resetForm() }}>
-          <div className="modal" style={{ maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border-light, #f1f5f9)' }}>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>{editingId ? 'Editar cliente' : 'Novo cliente'}</div>
-              <button onClick={() => { setShowModal(false); resetForm() }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-secondary, #64748b)' }}>✕</button>
+          <div className="modal-box" style={{ width: 'min(520px, 100%)' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{editingId ? 'Editar cliente' : 'Novo cliente'}</div>
+              <button onClick={() => { setShowModal(false); resetForm() }} className="btn-ghost" style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
             </div>
 
-            <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-soft, #f8fafc)' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: previewColor.bg, color: previewColor.cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>
+            <div style={{ padding: '14px 1.5rem', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border-light)' }}>
+              <div className="avatar" style={{ width: 44, height: 44, background: previewColor.bg, color: previewColor.cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, flexShrink: 0 }}>
                 {form.name ? ini(form.name) : '?'}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{form.name || 'Nome do cliente'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary, #64748b)' }}>{metaLabel()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{form.name || 'Nome do cliente'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{metaLabel()}</div>
               </div>
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                 {form.badges.map(b => <span key={b} className={badgeCls(b)}>{b}</span>)}
               </div>
             </div>
 
-            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <div className="label">NOME COMPLETO</div>
-                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ex: Maria Silva" />
+            <div className="modal-body">
+              <div className="form-field">
+                <label className="form-label">Nome completo</label>
+                <input type="text" className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ex: Maria Silva" />
               </div>
 
-              <div>
-                <div className="label">CPF</div>
-                <input type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
+              <div className="form-field">
+                <label className="form-label">CPF</label>
+                <input type="text" className="form-input" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
               </div>
 
               {form.badges.includes('PJ') && (
-                <div>
-                  <div className="label">CNPJ</div>
-                  <input type="text" value={form.cnpj} onChange={e => setForm({...form, cnpj: e.target.value})} placeholder="00.000.000/0000-00" />
+                <div className="form-field">
+                  <label className="form-label">CNPJ</label>
+                  <input type="text" className="form-input" value={form.cnpj} onChange={e => setForm({...form, cnpj: e.target.value})} placeholder="00.000.000/0000-00" />
                 </div>
               )}
 
-              <div>
-                <div className="label">CLASSIFICAÇÃO</div>
+              <div className="form-field">
+                <label className="form-label">Classificação</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {(['PF','PJ','Representante'] as Badge[]).map(b => (
-                    <button key={b} type="button" onClick={() => toggleBadge(b)} className={form.badges.includes(b) ? badgeCls(b) + ' badge-active' : 'badge-inactive'} style={{ cursor: 'pointer', border: form.badges.includes(b) ? '1px solid currentColor' : '1px solid var(--border, #e2e8f0)', padding: '4px 12px', borderRadius: 12, fontSize: 11, fontWeight: 500 }}>
-                      {b}
-                    </button>
-                  ))}
+                  {(['PF','PJ','Representante'] as Badge[]).map(b => {
+                    const active = form.badges.includes(b)
+                    return (
+                      <button key={b} type="button" onClick={() => toggleBadge(b)}
+                        style={{ padding: '5px 14px', borderRadius: 14, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                          border: active ? '1px solid var(--purple-400)' : '0.5px solid var(--border-medium)',
+                          background: active ? 'var(--purple-50)' : 'var(--bg-primary)',
+                          color: active ? 'var(--purple-700)' : 'var(--text-secondary)' }}>
+                        {b}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
-              <div>
-                <div className="label">OBSERVAÇÕES</div>
-                <textarea value={form.obs} onChange={e => setForm({...form, obs: e.target.value})} rows={3} placeholder="Anotações internas sobre o cliente..." />
+              <div className="form-field">
+                <label className="form-label">Observações</label>
+                <textarea className="form-input form-textarea" value={form.obs} onChange={e => setForm({...form, obs: e.target.value})} placeholder="Anotações internas sobre o cliente..." />
               </div>
 
-              <div>
-                <div className="label">VÍNCULOS</div>
+              <div className="form-field">
+                <label className="form-label">Vínculos</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {savedVinculos.map(v => (
-                    <div key={v.id} style={{ padding: '8px 12px', background: 'var(--purple-50, #faf5ff)', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div key={v.id} style={{ padding: '8px 12px', background: 'var(--purple-50)', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 500 }}>{v.linked_client?.name}</span>
-                      <span style={{ color: 'var(--text-secondary, #64748b)' }}>— {(v.rels || []).join(', ')}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--purple-600, #7c3aed)', fontWeight: 500 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>— {(v.rels||[]).join(', ')}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--purple-700)', fontWeight: 500 }}>
                         {v.tipo === 'rep' ? 'Representante' : 'Representado'}
                       </span>
                     </div>
                   ))}
                   {pendingVinculos.map((v, i) => (
-                    <div key={'p'+i} style={{ padding: '8px 12px', background: 'var(--purple-50, #faf5ff)', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px dashed var(--purple-300, #d8b4fe)' }}>
+                    <div key={'p'+i} style={{ padding: '8px 12px', background: 'var(--purple-50)', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px dashed var(--purple-300, #d8b4fe)' }}>
                       <span style={{ fontWeight: 500 }}>{v.linked_name}</span>
-                      <span style={{ color: 'var(--text-secondary, #64748b)' }}>— {v.rels.join(', ')}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--purple-600, #7c3aed)', fontWeight: 500 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>— {v.rels.join(', ')}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--purple-700)', fontWeight: 500 }}>
                         {v.tipo === 'rep' ? 'Representante' : 'Representado'}
                       </span>
-                      <button onClick={() => setPendingVinculos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary, #94a3b8)', fontSize: 14 }}>✕</button>
+                      <button onClick={() => setPendingVinculos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13 }}>✕</button>
                     </div>
                   ))}
                   {!drawerOpen && (
-                    <button type="button" onClick={() => setDrawerOpen(true)} style={{ padding: '10px', border: '1px dashed var(--border, #e2e8f0)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary, #64748b)', textAlign: 'center' }}>
+                    <button type="button" onClick={() => setDrawerOpen(true)}
+                      style={{ padding: '10px', border: '1px dashed var(--border-medium)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', fontFamily: 'inherit' }}>
                       + Vincular a cliente existente
                     </button>
                   )}
@@ -352,19 +313,20 @@ export default function ClientsView({ showToast }: Props) {
               </div>
 
               {drawerOpen && (
-                <div style={{ border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, padding: 14, background: 'var(--bg-soft, #f8fafc)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: 'var(--text-secondary, #64748b)' }}>
+                <div style={{ border: '0.5px solid var(--border-medium)', borderRadius: 10, padding: 14, background: 'var(--bg-secondary)', marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
                     {drawerStep === 1 && 'Passo 1 — Tipo de vínculo'}
                     {drawerStep === 2 && 'Passo 2 — Escolher cliente'}
                     {drawerStep === 3 && 'Passo 3 — Classificar relação'}
                   </div>
 
                   {drawerStep === 1 && (
-                    <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
                       {(['rep', 'repd'] as TipoVinculo[]).map(t => (
-                        <button key={t} type="button" onClick={() => { setDrawerTipo(t); setDrawerStep(2) }} style={{ flex: 1, padding: '14px 10px', border: drawerTipo === t ? '2px solid var(--purple-500, #a855f7)' : '1px solid var(--border, #e2e8f0)', borderRadius: 8, background: 'white', cursor: 'pointer', fontSize: 12, textAlign: 'left' }}>
-                          <div style={{ fontWeight: 600 }}>{t === 'rep' ? 'Representante' : 'Representado'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary, #64748b)', marginTop: 2 }}>
+                        <button key={t} type="button" onClick={() => { setDrawerTipo(t); setDrawerStep(2) }}
+                          style={{ flex: 1, padding: '12px', border: drawerTipo === t ? '1px solid var(--purple-400)' : '0.5px solid var(--border-medium)', borderRadius: 8, background: 'var(--bg-primary)', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontFamily: 'inherit' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t === 'rep' ? 'Representante' : 'Representado'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>
                             {t === 'rep' ? 'Age em nome de outro' : 'É representado por outro'}
                           </div>
                         </button>
@@ -374,17 +336,18 @@ export default function ClientsView({ showToast }: Props) {
 
                   {drawerStep === 2 && (
                     <div>
-                      <input type="text" placeholder="Buscar cliente..." value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+                      <input type="text" className="form-input" placeholder="Buscar cliente..." value={drawerSearch} onChange={e => setDrawerSearch(e.target.value)} style={{ marginBottom: 8 }} />
                       <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {drawerClients.map(c => (
-                          <button key={c.id} type="button" onClick={() => { setDrawerClientId(c.id); setDrawerStep(3) }} style={{ padding: '8px 10px', border: drawerClientId === c.id ? '2px solid var(--purple-500, #a855f7)' : '1px solid var(--border, #e2e8f0)', borderRadius: 6, background: 'white', cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: c.av_bg, color: c.av_cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600 }}>{ini(c.name)}</div>
-                            <span style={{ flex: 1 }}>{c.name}</span>
-                            {drawerClientId === c.id && <span style={{ color: 'var(--purple-600, #7c3aed)' }}>✓</span>}
+                          <button key={c.id} type="button" onClick={() => { setDrawerClientId(c.id); setDrawerStep(3) }}
+                            style={{ padding: '8px 10px', border: drawerClientId === c.id ? '1px solid var(--purple-400)' : '0.5px solid var(--border-medium)', borderRadius: 6, background: 'var(--bg-primary)', cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
+                            <div className="avatar" style={{ width: 26, height: 26, background: c.av_bg, color: c.av_cl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600 }}>{ini(c.name)}</div>
+                            <span style={{ flex: 1, color: 'var(--text-primary)' }}>{c.name}</span>
+                            {drawerClientId === c.id && <span style={{ color: 'var(--purple-600)' }}>✓</span>}
                           </button>
                         ))}
                         {drawerClients.length === 0 && (
-                          <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary, #94a3b8)' }}>Nenhum cliente disponível</div>
+                          <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)' }}>Nenhum cliente disponível</div>
                         )}
                       </div>
                     </div>
@@ -397,47 +360,43 @@ export default function ClientsView({ showToast }: Props) {
                           const active = drawerRels.includes(r)
                           return (
                             <button key={r} type="button" onClick={() => {
-                              if (drawerTipo === 'repd') {
-                                setDrawerRels(active ? [] : [r])
-                              } else {
-                                setDrawerRels(prev => active ? prev.filter(x => x !== r) : [...prev, r])
-                              }
-                            }} style={{ padding: '6px 12px', border: active ? '2px solid var(--purple-500, #a855f7)' : '1px solid var(--border, #e2e8f0)', borderRadius: 16, background: active ? 'var(--purple-50, #faf5ff)' : 'white', cursor: 'pointer', fontSize: 11, fontWeight: 500 }}>
+                              if (drawerTipo === 'repd') setDrawerRels(active ? [] : [r])
+                              else setDrawerRels(prev => active ? prev.filter(x => x !== r) : [...prev, r])
+                            }}
+                              style={{ padding: '5px 12px', border: active ? '1px solid var(--purple-400)' : '0.5px solid var(--border-medium)', borderRadius: 14, background: active ? 'var(--purple-50)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, fontWeight: 500, color: active ? 'var(--purple-700)' : 'var(--text-secondary)', fontFamily: 'inherit' }}>
                               {r}
                             </button>
                           )
                         })}
-                        <button type="button" onClick={() => setDrawerRels(prev => prev.includes('Outros') ? prev.filter(x => x !== 'Outros') : (drawerTipo === 'repd' ? ['Outros'] : [...prev, 'Outros']))} style={{ padding: '6px 12px', border: drawerRels.includes('Outros') ? '2px solid var(--purple-500, #a855f7)' : '1px dashed var(--border, #e2e8f0)', borderRadius: 16, background: 'white', cursor: 'pointer', fontSize: 11, fontWeight: 500 }}>
+                        <button type="button" onClick={() => {
+                          const has = drawerRels.includes('Outros')
+                          if (drawerTipo === 'repd') setDrawerRels(has ? [] : ['Outros'])
+                          else setDrawerRels(prev => has ? prev.filter(x => x !== 'Outros') : [...prev, 'Outros'])
+                        }}
+                          style={{ padding: '5px 12px', border: drawerRels.includes('Outros') ? '1px solid var(--purple-400)' : '1px dashed var(--border-medium)', borderRadius: 14, background: 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', fontFamily: 'inherit' }}>
                           + Outros
                         </button>
                       </div>
                       {drawerRels.includes('Outros') && (
-                        <input type="text" placeholder="Descreva a relação..." value={drawerOutro} onChange={e => setDrawerOutro(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
-                      )}
-                      {drawerRels.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          {drawerRels.map(r => (
-                            <span key={r} style={{ padding: '3px 8px', background: 'var(--purple-100, #f3e8ff)', color: 'var(--purple-700, #6b21a8)', borderRadius: 10, fontSize: 10, fontWeight: 500 }}>{r}</span>
-                          ))}
-                        </div>
+                        <input type="text" className="form-input" placeholder="Descreva a relação..." value={drawerOutro} onChange={e => setDrawerOutro(e.target.value)} style={{ marginBottom: 10 }} />
                       )}
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 14, gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 14, gap: 8, paddingTop: 10, borderTop: '0.5px solid var(--border-light)' }}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {[1,2,3].map(n => (
-                        <span key={n} style={{ width: 6, height: 6, borderRadius: '50%', background: n <= drawerStep ? 'var(--purple-500, #a855f7)' : 'var(--border, #e2e8f0)' }} />
+                        <span key={n} style={{ width: 6, height: 6, borderRadius: '50%', background: n <= drawerStep ? 'var(--purple-500)' : 'var(--border-medium)' }} />
                       ))}
                     </div>
-                    <button type="button" onClick={closeDrawer} style={{ marginLeft: 'auto', padding: '6px 12px', background: 'transparent', border: '1px solid var(--border, #e2e8f0)', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Cancelar</button>
-                    <button type="button" disabled={!drawerTipo || !drawerClientId || drawerRels.length === 0} onClick={confirmDrawer} style={{ padding: '6px 12px', background: 'var(--purple-500, #a855f7)', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer', opacity: (!drawerTipo || !drawerClientId || drawerRels.length === 0) ? 0.5 : 1 }}>Adicionar</button>
+                    <button type="button" onClick={closeDrawer} className="btn btn-ghost" style={{ marginLeft: 'auto', padding: '5px 12px', fontSize: 11 }}>Cancelar</button>
+                    <button type="button" disabled={!drawerTipo || !drawerClientId || drawerRels.length === 0} onClick={confirmDrawer} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: 11, opacity: (!drawerTipo || !drawerClientId || drawerRels.length === 0) ? 0.5 : 1 }}>Adicionar</button>
                   </div>
                 </div>
               )}
             </div>
 
-            <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-light, #f1f5f9)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="modal-footer">
               <button onClick={() => { setShowModal(false); resetForm() }} className="btn btn-secondary">Cancelar</button>
               <button onClick={saveClient} className="btn btn-primary">{editingId ? 'Salvar alterações' : 'Cadastrar cliente'}</button>
             </div>
@@ -447,17 +406,17 @@ export default function ClientsView({ showToast }: Props) {
 
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border-light, #f1f5f9)' }}>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>Excluir cliente</div>
+          <div className="modal-box" style={{ width: 'min(400px, 100%)' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><div className="modal-title">Excluir cliente</div></div>
+            <div className="modal-body">
+              <div style={{ fontSize: 13 }}>Confirmar exclusão de <strong>{confirmDelete.name}</strong>?</div>
+              <div style={{ fontSize: 12, color: '#b91c1c', padding: 10, background: '#fef2f2', borderRadius: 8, border: '0.5px solid #fecaca' }}>
+                ⚠ Esta ação não pode ser desfeita.
+              </div>
             </div>
-            <div style={{ padding: 18 }}>
-              <div style={{ fontSize: 13, marginBottom: 10 }}>Confirmar exclusão de <strong>{confirmDelete.name}</strong>?</div>
-              <div style={{ fontSize: 12, color: '#dc2626', padding: 8, background: '#fef2f2', borderRadius: 6 }}>⚠ Esta ação não pode ser desfeita.</div>
-            </div>
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border-light, #f1f5f9)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="modal-footer">
               <button onClick={() => setConfirmDelete(null)} className="btn btn-secondary">Cancelar</button>
-              <button onClick={doDelete} style={{ padding: '6px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Excluir cliente</button>
+              <button onClick={doDelete} className="btn btn-danger">Excluir cliente</button>
             </div>
           </div>
         </div>
