@@ -266,7 +266,7 @@ export default function ClientsView({ showToast }: Props) {
                                                                                 <div className="modal-body">
                                                                                     {/* Nome */}
                                                                                                             <div className="form-field">
-                                                                                                                                            <label className="form-label">Nome completo *</label>label>
+                                                                                                                                            <label className="form-label">Nome completo *</label>
                                                                                                                                             <input
                                                                                                                                                                                     className="form-input"
                                                                                                                                                                                     placeholder="Nome do cliente"
@@ -278,7 +278,7 @@ export default function ClientsView({ showToast }: Props) {
                                                                                 
                                                                                     {/* Classificacao */}
                                                                                                             <div className="form-field">
-                                                                                                                                            <label className="form-label">Classificacao</label>label>
+                                                                                                                                            <label className="form-label">Classificacao</label>
                                                                                                                                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                                                                                                                                 {(['PF', 'PJ', 'Representante'] as Badge[]).map(b => {
                                                                                 const active = form.badges.includes(b)
@@ -314,27 +314,27 @@ export default function ClientsView({ showToast }: Props) {
                                                                                     {/* CPF / CNPJ */}
                                                                                     {form.badges.includes('PF') && (
                                                                         <div className="form-field">
-                                                                                                            <label className="form-label">CPF</label>label>
+                                                                                                            <label className="form-label">CPF</label>
                                                                                                             <input className="form-input" placeholder="000.000.000-00" value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} />
                                                                             </div>
                                                                                                             )}
                                                                                     {form.badges.includes('PJ') && (
                                                                         <div className="form-field">
-                                                                                                            <label className="form-label">CNPJ</label>label>
+                                                                                                            <label className="form-label">CNPJ</label>
                                                                                                             <input className="form-input" placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e => setForm({ ...form, cnpj: e.target.value })} />
                                                                             </div>
                                                                                                             )}
                                                                                 
                                                                                     {/* Observacoes */}
                                                                                                             <div className="form-field">
-                                                                                                                                            <label className="form-label">Observacoes</label>label>
+                                                                                                                                            <label className="form-label">Observacoes</label>
                                                                                                                                             <textarea className="form-input form-textarea" value={form.obs} onChange={e => setForm({ ...form, obs: e.target.value })} placeholder="Anotacoes internas sobre o cliente..." />
                                                                                                                 </div>
                                                                                 
                                                                                     {/* Vinculos salvos */}
                                                                                     {(savedVinculos.length > 0 || pendingVinculos.length > 0) && (
                                                                         <div className="form-field">
-                                                                                                            <label className="form-label">Vinculos</label>label>
+                                                                                                            <label className="form-label">Vinculos</label>
                                                                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                                                                                                 {savedVinculos.map(v => (
                                                                                                                         <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
@@ -493,7 +493,7 @@ export default function ClientsView({ showToast }: Props) {
                                                                                                                                             <div style={{ color: '#991B1B', fontSize: 13 }}>Todos os servicos e tarefas do cliente serao permanentemente excluidos.</div>
                                                                                                                 </div>
                                                                                                             <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                                                                                                                                            Confirma a exclusao de <strong style={{ color: 'var(--text-primary)' }}>{confirmDelete.name}</strong>strong>?
+                                                                                                                                            Confirma a exclusao de <strong style={{ color: 'var(--text-primary)' }}>{confirmDelete.name}</strong>?
                                                                                                                 </div>
                                                                                     </div>
                                                                                 <div className="modal-footer">
