@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { getClients, createClient, updateClient, getVinculos, createVinculoBidirecional, deleteClientCompleto, deleteVinculo } from '@/lib/db'
-import { ini, getColor, badgeCls } from '@/lib/utils'
+import { ini, getColor } from '@/lib/utils'
 import type { Client, Vinculo, Badge, TipoVinculo } from '@/lib/types'
 import ClientPanel from './ClientPanel'
 
