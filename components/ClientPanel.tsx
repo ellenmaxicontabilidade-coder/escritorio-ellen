@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { getServicesByClient, getSubtasksByService, getCommentsBySubtask, updateSubtask, toggleSubtaskWithSync, createComment, createSubtask, getVinculos } from '@/lib/db'
-import { ini, fmtDate, TIPO_LABEL, nowStr } from '@/lib/utils'
+import { getServicesByClient, getSubtasksByService, getCommentsBySubtask, toggleSubtaskWithSync, createComment, createSubtask, getVinculos } from '@/lib/db'
+import { ini, fmtDate, nowStr } from '@/lib/utils'
 import type { Client, Service, Subtask, Comment, Vinculo } from '@/lib/types'
 
 interface Props {
