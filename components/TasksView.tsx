@@ -1,490 +1,747 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { getTasksByDate, createTask, updateTask, deleteTask } from '@/lib/db'
-import { getClients } from '@/lib/db'
-import { MNS, DLONG, toISO, pad, TIPO_LABEL, chipResp } from '@/lib/utils'
+
+import { useEffect, useMemo, useState } from 'react'
 import type { Task, Client } from '@/lib/types'
+import {
+  getTasksByDate,
+  createTask,
+  updateTask,
+  deleteTask,
+  getClients,
+} from '@/lib/db'
+import { toISO, fmtDate, TIPO_LABEL, chipResp, MNS, DLONG } from '@/lib/utils'
 
-const TODAY = toISO(new Date())
-const DNS7 = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const RESP_ELLEN = 'Ellen Maximiano'
+const RESP_ANDREWS = 'Andrews Maximiano'
+const RESP_SUPORTE = 'Suporte'
 
-interface Props { showToast: (msg: string, type?: 'success' | 'danger') => void }
+const PRIORITY_COLOR: Record<string, string> = {
+  alta: '#DC2626',
+  media: '#F59E0B',
+  baixa: '#10B981',
+}
 
-export default function TasksView({ showToast }: Props) {
-  const now = new Date()
-  const [selDay, setSelDay] = useState(TODAY)
+type StatusKey = 'pendente' | 'aguardando' | 'concluida'
+
+const STATUS_META: Record<StatusKey, { label: string; order: number }> = {
+  pendente: { label: 'PENDENTE', order: 1 },
+  aguardando: { label: 'AGUARDANDO CLIENTE', order: 2 },
+  concluida: { label: 'CONCLUÍDA', order: 3 },
+}
+
+type FilterKey =
+  | 'sincronizadas'
+  | 'ellen'
+  | 'andrews'
+  | 'prev'
+  | 'contab'
+
+function statusOf(t: Task): StatusKey {
+  const s = (t as any).status as StatusKey | undefined
+  if (s === 'aguardando' || s === 'concluida' || s === 'pendente') return s
+  return t.done ? 'concluida' : 'pendente'
+}
+
+function formatBRLong(iso: string): string {
+  const today = toISO(new Date())
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const prefix = iso === today ? 'Hoje — ' : ''
+  return `${prefix}${d} de ${MNS ? MNS[m - 1] : dt.toLocaleDateString('pt-BR', { month: 'long' })} de ${y}`
+}
+
+type SyncGroup = {
+  key: string
+  via: { client?: string; atendente?: string }
+  tasks: Task[]
+}
+
+function groupBySync(tasks: Task[]): { groups: SyncGroup[]; solo: Task[] } {
+  const map = new Map<string, Task[]>()
+  const solo: Task[] = []
+  for (const t of tasks) {
+    if (t.sync_group) {
+      const arr = map.get(t.sync_group) || []
+      arr.push(t)
+      map.set(t.sync_group, arr)
+    } else {
+      solo.push(t)
+    }
+  }
+  const groups: SyncGroup[] = []
+  for (const [key, arr] of map) {
+    if (arr.length < 2) {
+      solo.push(...arr)
+      continue
+    }
+    const orig = arr.find((t) => (t as any).sync_orig) || arr[0]
+    groups.push({
+      key,
+      via: {
+        client: orig.client_name,
+        atendente: (orig as any).resp,
+      },
+      tasks: arr,
+    })
+  }
+  return { groups, solo }
+}
+
+export default function TasksView() {
+  const [date, setDate] = useState<string>(toISO(new Date()))
   const [tasks, setTasks] = useState<Task[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [flt, setFlt] = useState('all')
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [showCal, setShowCal] = useState(false)
-  const [tcpYear, setTcpYear] = useState(now.getFullYear())
-  const [tcpMonth, setTcpMonth] = useState(now.getMonth())
-  const [form, setForm] = useState({ title:'', clientId:'', service:'', area:'prev', priority:'media', resp:'Ellen Maximiano', date: TODAY, time:'' })
-  const [detailTask, setDetailTask] = useState<Task | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [editForm, setEditForm] = useState({ title:'', clientId:'', service:'', area:'', priority:'', resp:'', date:'' })
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
+  const [showForm, setShowForm] = useState(false)
+  const [detail, setDetail] = useState<Task | null>(null)
 
-  const loadTasks = useCallback(async () => {
+  async function reload() {
     setLoading(true)
-    try { setTasks(await getTasksByDate(selDay)) }
-    finally { setLoading(false) }
-  }, [selDay])
-
-  useEffect(() => { loadTasks() }, [loadTasks])
-  useEffect(() => { getClients().then(setClients) }, [])
-
-  async function toggleTask(task: Task) {
-    await updateTask(task.id, { done: !task.done })
-    if (task.sync_group) {
-      const mirrors = tasks.filter(t => t.sync_group === task.sync_group && t.id !== task.id)
-      await Promise.all(mirrors.map(m => updateTask(m.id, { done: !task.done })))
+    try {
+      const [ts, cs] = await Promise.all([getTasksByDate(date), getClients()])
+      setTasks(ts)
+      setClients(cs)
+    } finally {
+      setLoading(false)
     }
-    loadTasks()
   }
 
-  async function saveTask() {
-    if (!form.title.trim()) return
-    const cli = clients.find(c => c.id === form.clientId)
-    await createTask({
-      title: form.title,
-      client_name: cli?.name || '—',
-      client_id: form.clientId || undefined,
-      service: form.service || '—',
-      resp: form.resp as any,
-      tipo: form.area as any,
-      priority: form.priority as any,
-      done: false,
-      date: form.date || selDay,
-    })
-    setShowModal(false)
-    setForm({ title:'', clientId:'', service:'', area:'prev', priority:'media', resp:'Ellen Maximiano', date: TODAY, time:'' })
-    showToast('Tarefa criada!')
-    loadTasks()
+  useEffect(() => {
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date])
+
+  function toggleFilter(k: FilterKey) {
+    const n = new Set(filters)
+    if (n.has(k)) n.delete(k)
+    else n.add(k)
+    setFilters(n)
+  }
+  function clearFilters() {
+    setFilters(new Set())
   }
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return tasks.filter((t) => {
+      if (q) {
+        const hay = `${t.title || ''} ${t.client_name || ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      if (filters.size === 0) return true
 
-  function openDetail(task: Task) {
-    setDetailTask(task)
-    setEditMode(false)
-    setConfirmDelete(false)
-    const cli = clients.find(c => c.name === task.client_name)
-    setEditForm({
-      title: task.title,
-      clientId: cli?.id || '',
-      service: task.service === '—' ? '' : task.service,
-      area: task.tipo,
-      priority: task.priority,
-      resp: task.resp,
-      date: task.date,
-    })
-  }
+      const hasResp = filters.has('ellen') || filters.has('andrews')
+      const hasTipo = filters.has('prev') || filters.has('contab')
+      const hasSync = filters.has('sincronizadas')
 
-  async function saveEdit() {
-    if (!detailTask || !editForm.title.trim()) return
-    const cli = clients.find(c => c.id === editForm.clientId)
-    await updateTask(detailTask.id, {
-      title: editForm.title,
-      client_name: cli?.name || detailTask.client_name,
-      client_id: editForm.clientId || undefined,
-      service: editForm.service || '—',
-      resp: editForm.resp as any,
-      tipo: editForm.area as any,
-      priority: editForm.priority as any,
-      date: editForm.date || detailTask.date,
+      if (hasResp) {
+        const r = (t as any).resp || ''
+        const okE = filters.has('ellen') && r === RESP_ELLEN
+        const okA = filters.has('andrews') && r === RESP_ANDREWS
+        if (!okE && !okA) return false
+      }
+      if (hasTipo) {
+        const tp = (t as any).tipo || ''
+        const okP = filters.has('prev') && tp === 'prev'
+        const okC = filters.has('contab') && tp === 'contab'
+        if (!okP && !okC) return false
+      }
+      if (hasSync) {
+        if (!t.sync_group) return false
+      }
+      return true
     })
-    if (detailTask.sync_group) {
-      const mirrors = tasks.filter(t => t.sync_group === detailTask.sync_group && t.id !== detailTask.id)
-      await Promise.all(mirrors.map(m => updateTask(m.id, {
-        title: editForm.title,
-        service: editForm.service || '—',
-        resp: editForm.resp as any,
-        tipo: editForm.area as any,
-        priority: editForm.priority as any,
-      })))
+  }, [tasks, filters, search])
+
+  const counts = useMemo(() => {
+    const c: Record<StatusKey, number> = { pendente: 0, aguardando: 0, concluida: 0 }
+    for (const t of filtered) c[statusOf(t)]++
+    return c
+  }, [filtered])
+
+  const sections = useMemo(() => {
+    const byStatus: Record<StatusKey, Task[]> = {
+      pendente: [],
+      aguardando: [],
+      concluida: [],
     }
-    setDetailTask(null)
-    setEditMode(false)
-    showToast('Tarefa atualizada!')
-    loadTasks()
+    for (const t of filtered) byStatus[statusOf(t)].push(t)
+    return (['pendente', 'aguardando', 'concluida'] as StatusKey[]).map((s) => ({
+      key: s,
+      label: STATUS_META[s].label,
+      tasks: byStatus[s],
+    }))
+  }, [filtered])
+
+  async function onToggleDone(t: Task) {
+    const next = statusOf(t) === 'concluida' ? 'pendente' : 'concluida'
+    await updateTask(t.id, { status: next, done: next === 'concluida' } as any)
+    await reload()
   }
-
-  async function handleDelete() {
-    if (!detailTask) return
-    if (detailTask.sync_group) {
-      const mirrors = tasks.filter(t => t.sync_group === detailTask.sync_group && t.id !== detailTask.id)
-      await Promise.all(mirrors.map(m => deleteTask(m.id)))
-    }
-    await deleteTask(detailTask.id)
-    setDetailTask(null)
-    setConfirmDelete(false)
-    showToast('Tarefa excluída!', 'danger')
-    loadTasks()
+  async function onChangeStatus(t: Task, s: StatusKey) {
+    await updateTask(t.id, { status: s, done: s === 'concluida' } as any)
+    await reload()
   }
-
-  function filtered() {
-    let fl = [...tasks]
-    if (flt === 'sync') fl = fl.filter(t => !!t.sync_group)
-    else if (flt === 'Ellen Maximiano' || flt === 'Andrews Maximiano') fl = fl.filter(t => t.resp === flt)
-    else if (flt !== 'all') fl = fl.filter(t => t.tipo === flt)
-    if (search) fl = fl.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.client_name.toLowerCase().includes(search.toLowerCase()))
-    return fl
-  }
-
-  function buildTcpDays() {
-    const first = new Date(tcpYear, tcpMonth, 1).getDay()
-    const dim = new Date(tcpYear, tcpMonth + 1, 0).getDate()
-    const dip = new Date(tcpYear, tcpMonth, 0).getDate()
-    const cells = []
-    for (let i = 0; i < first; i++) cells.push({ d: dip - first + 1 + i, iso: null })
-    for (let d = 1; d <= dim; d++) cells.push({ d, iso: `${tcpYear}-${pad(tcpMonth + 1)}-${pad(d)}` })
-    const rem = (first + dim) % 7 === 0 ? 0 : 7 - ((first + dim) % 7)
-    for (let i = 1; i <= rem; i++) cells.push({ d: i, iso: null })
-    return cells
-  }
-
-  const fl = filtered()
-  const pending = fl.filter(t => !t.done)
-  const done = fl.filter(t => t.done)
-  const d = new Date(selDay + 'T12:00')
-  const dateLabel = selDay === TODAY
-    ? `Hoje — ${d.getDate()} de ${MNS[d.getMonth()]} de ${d.getFullYear()}`
-    : `${DLONG[d.getDay()]}, ${d.getDate()} de ${MNS[d.getMonth()]} de ${d.getFullYear()}`
-
-  const PRIO_LABEL: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
-  const AREA_LABEL: Record<string, string> = { prev: 'Previdenciário', contab: 'Contabilidade', assess: 'Cont. | Assessoria', assessoria: 'Assessoria', cliente: 'Cliente', interno: 'Interno' }
-
-  function renderTask(task: Task) {
-    const pc = task.priority === 'alta' ? '#E24B4A' : task.priority === 'media' ? '#EF9F27' : '#639922'
-    return (
-      <div key={task.id} onClick={() => openDetail(task)} style={{ cursor:'pointer', display:'flex', alignItems:'flex-start', gap:8, padding:'9px 12px', background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border-light)', opacity: task.done ? 0.45 : 1, cursor:'pointer' }} onClick={() => openDetail(task)}>
-        <div style={{ width:3, borderRadius:2, flexShrink:0, alignSelf:'stretch', background: pc }}></div>
-        <div className={`checkbox ${task.done ? 'checked' : ''}`} style={{ marginTop:2 }} onClick={(e) => { e.stopPropagation(); toggleTask(task) }}></div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:13, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</div>
-          <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginTop:3 }}>
-            <span className="chip chip-label">{task.client_name}</span>
-            <span className={`chip ${task.resp === 'Ellen Maximiano' ? 'chip-ellen' : 'chip-andrews'}`}>{task.resp}</span>
-            <span className={`chip ${task.tipo === 'prev' ? 'chip-p' : task.tipo === 'contab' ? 'chip-c' : task.tipo === 'cliente' ? 'chip-g' : 'chip-i'}`}>{TIPO_LABEL[task.tipo] || task.tipo}</span>
-            {task.sync_group && <span className="chip chip-s">Sync</span>}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  function renderEditForm() {
-    return (
-      <>
-        <div className="form-field"><label className="form-label">Descrição</label><input className="form-input" value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))} /></div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-          <div className="form-field"><label className="form-label">Data</label><input className="form-input" type="date" value={editForm.date} onChange={e => setEditForm(p => ({...p, date: e.target.value}))} /></div>
-          <div className="form-field"><label className="form-label">Horário</label><input className="form-input" type="time" /></div>
-        </div>
-        <div className="form-field"><label className="form-label">Cliente</label>
-          <select className="form-input" value={editForm.clientId} onChange={e => setEditForm(p => ({...p, clientId: e.target.value}))}>
-            <option value="">— Selecionar —</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div className="form-field"><label className="form-label">Serviço</label><input className="form-input" placeholder="Ex: IRPF 2025, BPC LOAS..." value={editForm.service} onChange={e => setEditForm(p => ({...p, service: e.target.value}))} /></div>
-        <div className="form-field"><label className="form-label">Área</label>
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-            {[['prev','Previdenciário','#E6F1FB','#0C447C','#85B7EB'],['contab','Contabilidade','#EEEDFE','#3C3489','#AFA9EC'],['assess','Cont. | Assessoria','#FAEEDA','#633806','#EF9F27']].map(([v,l,bg,cl,bc]) => (
-              <div key={v} onClick={() => setEditForm(p => ({...p, area: v}))} style={{ padding:'7px 13px', border:`0.5px solid ${editForm.area === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: editForm.area === v ? bg : 'var(--bg-secondary)', color: editForm.area === v ? cl : 'var(--text-secondary)' }}>{l}</div>
-            ))}
-          </div>
-        </div>
-        <div className="form-field"><label className="form-label">Prioridade</label>
-          <div style={{ display:'flex', gap:6 }}>
-            {[['alta','Alta','#FCEBEB','#A32D2D','#F09595'],['media','Média','#FAEEDA','#633806','#EF9F27'],['baixa','Baixa','#EAF3DE','#27500A','#97C459']].map(([v,l,bg,cl,bc]) => (
-              <div key={v} onClick={() => setEditForm(p => ({...p, priority: v}))} style={{ flex:1, padding:'8px 0', textAlign:'center', border:`0.5px solid ${editForm.priority === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: editForm.priority === v ? bg : 'var(--bg-secondary)', color: editForm.priority === v ? cl : 'var(--text-secondary)' }}>{l}</div>
-            ))}
-          </div>
-        </div>
-        <div className="form-field"><label className="form-label">Responsável</label>
-          <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-            {(['Ellen Maximiano','Andrews Maximiano'] as const).map(r => (
-              <div key={r} onClick={() => setEditForm(p => ({...p, resp: r}))} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', border:`0.5px solid ${editForm.resp === r ? 'var(--purple-400)' : 'var(--border-medium)'}`, borderRadius:'var(--radius-lg)', cursor:'pointer', background: editForm.resp === r ? 'var(--bg-primary)' : 'var(--bg-secondary)', position:'relative' }}>
-                {editForm.resp === r && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, borderRadius:'3px 0 0 3px', background:'var(--purple-600)' }}></div>}
-                <div className="avatar avatar-md" style={{ background: r === 'Ellen Maximiano' ? '#EEEDFE' : '#FAEEDA', color: r === 'Ellen Maximiano' ? '#3C3489' : '#633806' }}>{r === 'Ellen Maximiano' ? 'EM' : 'AM'}</div>
-                <span style={{ fontSize:14, fontWeight:500, color: editForm.resp === r ? 'var(--purple-800)' : 'var(--text-primary)' }}>{r}</span>
-                <div style={{ marginLeft:'auto', width:18, height:18, borderRadius:'50%', border:`1.5px solid ${editForm.resp === r ? 'var(--purple-600)' : 'var(--border-medium)'}`, background: editForm.resp === r ? 'var(--purple-600)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  {editForm.resp === r && <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--purple-50)' }}></div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </>
-    )
+  async function onDelete(t: Task) {
+    if (!confirm(`Excluir tarefa "${t.title}"?`)) return
+    await deleteTask(t.id)
+    setDetail(null)
+    await reload()
   }
 
   return (
-    <div>
-      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
-        <button className={`btn ${selDay === TODAY ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSelDay(TODAY)}>Hoje</button>
-        <div style={{ position:'relative' }}>
-          <button className={`btn btn-secondary ${selDay !== TODAY ? 'active' : ''}`} onClick={() => setShowCal(v => !v)}>
-            📅 {selDay !== TODAY ? `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}` : 'Escolher data'}
-          </button>
-          {showCal && (
-            <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, background:'var(--bg-primary)', border:'0.5px solid var(--border-medium)', borderRadius:'var(--radius-xl)', overflow:'hidden', zIndex:200, width:280 }}>
-              <div style={{ padding:'10px 14px', borderBottom:'0.5px solid var(--border-light)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth - 1, y = tcpYear; if (m < 0) { m = 11; y-- } setTcpMonth(m); setTcpYear(y) }}>←</button>
-                <span style={{ fontSize:13, fontWeight:500 }}>{MNS[tcpMonth]} {tcpYear}</span>
-                <button className="btn btn-icon btn-ghost" style={{ fontSize:13 }} onClick={() => { let m = tcpMonth + 1, y = tcpYear; if (m > 11) { m = 0; y++ } setTcpMonth(m); setTcpYear(y) }}>→</button>
-              </div>
-              <div style={{ padding:'8px 10px 12px' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:4 }}>
-                  {DNS7.map(d => <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:500, color:'var(--text-tertiary)', padding:'3px 0' }}>{d[0]}</div>)}
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
-                  {buildTcpDays().map((c, i) => (
-                    <div key={i} onClick={() => { if (c.iso) { setSelDay(c.iso); setShowCal(false) } }} style={{ textAlign:'center', fontSize:12, padding:'6px 2px', borderRadius:'var(--radius-md)', cursor: c.iso ? 'pointer' : 'default', color: !c.iso ? 'var(--text-tertiary)' : c.iso === selDay ? 'var(--purple-50)' : c.iso === TODAY ? 'var(--purple-600)' : 'var(--text-primary)', background: c.iso === selDay ? 'var(--purple-600)' : 'transparent', border: c.iso === TODAY && c.iso !== selDay ? '0.5px solid var(--purple-200)' : '0.5px solid transparent', fontWeight: c.iso === TODAY ? 500 : 400 }}>
-                      {c.d}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <button className="btn btn-primary" style={{ marginLeft:'auto' }} onClick={() => setShowModal(true)}>+ Nova tarefa</button>
+    <div style={{ padding: 16, maxWidth: 920, margin: '0 auto' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => setDate(toISO(new Date()))}>
+          Hoje
+        </button>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="input"
+          style={{ padding: '6px 10px' }}
+        />
+        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+          + Nova tarefa
+        </button>
       </div>
 
-      <div style={{ position:'relative', marginBottom:'1rem' }}>
-        <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-tertiary)', pointerEvents:'none' }}>🔍</span>
-        <input style={{ width:'100%', padding:'9px 12px 9px 32px', fontSize:13, border:'0.5px solid var(--border-medium)', borderRadius:'var(--radius-md)', background:'var(--bg-primary)', color:'var(--text-primary)', outline:'none', fontFamily:'inherit' }} placeholder="Buscar tarefa ou cliente..." value={search} onChange={e => setSearch(e.target.value)} />
+      <h2 style={{ margin: '14px 0 8px', fontSize: 18 }}>{formatBRLong(date)}</h2>
+
+      <input
+        className="input"
+        placeholder="Buscar tarefa ou cliente..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ width: '100%', padding: '8px 10px', marginBottom: 10 }}
+      />
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        <FilterChip active={filters.size === 0} onClick={clearFilters} label="Todas" />
+        <FilterChip
+          active={filters.has('sincronizadas')}
+          onClick={() => toggleFilter('sincronizadas')}
+          label="Sincronizadas"
+        />
+        <FilterChip
+          active={filters.has('ellen')}
+          onClick={() => toggleFilter('ellen')}
+          label="Ellen"
+        />
+        <FilterChip
+          active={filters.has('andrews')}
+          onClick={() => toggleFilter('andrews')}
+          label="Andrews"
+        />
+        <FilterChip
+          active={filters.has('prev')}
+          onClick={() => toggleFilter('prev')}
+          label="Previdenciário"
+        />
+        <FilterChip
+          active={filters.has('contab')}
+          onClick={() => toggleFilter('contab')}
+          label="Contabilidade"
+        />
       </div>
 
-      <div style={{ fontSize:14, fontWeight:500, marginBottom:'1rem' }}>
-        {selDay === TODAY ? 'Hoje — ' : ''}<span style={{ color:'var(--purple-600)' }}>{d.getDate()} de {MNS[d.getMonth()]} de {d.getFullYear()}</span>
-      </div>
+      {loading && <div style={{ opacity: 0.6 }}>Carregando...</div>}
 
-      <div style={{ display:'flex', gap:5, marginBottom:'1rem', flexWrap:'wrap' }}>
-        {[['all','Todas'],['sync','Sincronizadas'],['Ellen Maximiano','Ellen'],['Andrews Maximiano','Andrews'],['prev','Previdenciário'],['contab','Contabilidade']].map(([v,l]) => (
-          <button key={v} onClick={() => setFlt(v)} style={{ padding:'4px 10px', fontSize:11, fontWeight:500, border:'0.5px solid var(--border-medium)', borderRadius:20, cursor:'pointer', background: flt === v ? 'var(--bg-secondary)' : 'transparent', color: flt === v ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{l}</button>
+      {!loading &&
+        sections.map((sec) => (
+          <section key={sec.key} style={{ marginBottom: 18 }}>
+            <h3
+              style={{
+                fontSize: 13,
+                letterSpacing: 0.5,
+                color: '#64748b',
+                margin: '8px 0',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: 4,
+              }}
+            >
+              {sec.label} ({sec.tasks.length})
+            </h3>
+            {sec.tasks.length === 0 && (
+              <div style={{ opacity: 0.5, fontSize: 13, padding: '6px 2px' }}>—</div>
+            )}
+            <SectionBody tasks={sec.tasks} onToggle={onToggleDone} onOpen={setDetail} />
+          </section>
         ))}
-      </div>
 
-      {loading ? <div className="loading"><div className="spinner"></div>Carregando...</div> : (
-        <div>
-          {pending.length > 0 && (
-            <div style={{ marginBottom:'1.25rem' }}>
-              <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>Pendente ({pending.length})</div>
-              <div className="card">{(() => {
-      const out = [];
-      let i = 0;
-      while (i < pending.length) {
-        const t = pending[i];
-        if (t.sync_group) {
-          const g = t.sync_group;
-          const grp = [];
-          while (i < pending.length && pending[i].sync_group === g) { grp.push(pending[i]); i++; }
-          out.push(
-            <div key={`sg-${g}`} style={{ border:'1px solid #E4E0F5', background:'#F7F5FC', borderRadius:8, padding:6, marginBottom:8 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 8px 6px', fontSize:10, fontWeight:600, color:'#6A5BA6', textTransform:'uppercase', letterSpacing:'.06em' }}>
-                <span>SINCRONIZADAS</span>
-                <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, color:'#8B7FB8' }}>Via: {grp[0].sync_orig || 'outro atendente'}</span>
-              </div>
-              {grp.map(renderTask)}
-            </div>
-          );
-        } else {
-          out.push(renderTask(t));
-          i++;
-        }
-      }
-      return out;
-    })()}</div>
-            </div>
-          )}
-          {done.length > 0 && (
-            <div style={{ marginBottom:'1.25rem' }}>
-              <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:7 }}>Concluído ({done.length})</div>
-              <div className="card">{(() => {
-      const out = [];
-      let i = 0;
-      while (i < done.length) {
-        const t = done[i];
-        if (t.sync_group) {
-          const g = t.sync_group;
-          const grp = [];
-          while (i < done.length && done[i].sync_group === g) { grp.push(done[i]); i++; }
-          out.push(
-            <div key={`sg-${g}`} style={{ border:'1px solid #E4E0F5', background:'#F7F5FC', borderRadius:8, padding:6, marginBottom:8 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 8px 6px', fontSize:10, fontWeight:600, color:'#6A5BA6', textTransform:'uppercase', letterSpacing:'.06em' }}>
-                <span>SINCRONIZADAS</span>
-                <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, color:'#8B7FB8' }}>Via: {grp[0].sync_orig || 'outro atendente'}</span>
-              </div>
-              {grp.map(renderTask)}
-            </div>
-          );
-        } else {
-          out.push(renderTask(t));
-          i++;
-        }
-      }
-      return out;
-    })()}</div>
-            </div>
-          )}
-          {pending.length === 0 && done.length === 0 && (
-            <div className="empty">{search ? 'Nenhuma tarefa encontrada.' : 'Nenhuma tarefa para este dia.'}</div>
-          )}
-        </div>
+      {showForm && (
+        <NewTaskForm
+          date={date}
+          clients={clients}
+          onClose={() => setShowForm(false)}
+          onSaved={async () => {
+            setShowForm(false)
+            await reload()
+          }}
+        />
       )}
 
-      {showModal && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
-          <div className="modal-box">
-            <div className="modal-header">
-              <div className="modal-title">Nova tarefa</div>
-              <button className="btn btn-icon btn-ghost" onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-field"><label className="form-label">Descrição</label><input className="form-input" placeholder="Ex: Análise BPC..." value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} /></div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <div className="form-field"><label className="form-label">Data</label><input className="form-input" type="date" value={form.date} onChange={e => setForm(p => ({...p, date: e.target.value}))} /></div>
-                <div className="form-field"><label className="form-label">Horário</label><input className="form-input" type="time" value={form.time} onChange={e => setForm(p => ({...p, time: e.target.value}))} /></div>
-              </div>
-              <div className="form-field"><label className="form-label">Cliente</label>
-                <select className="form-input" value={form.clientId} onChange={e => setForm(p => ({...p, clientId: e.target.value}))}>
-                  <option value="">— Selecionar —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div className="form-field"><label className="form-label">Serviço</label><input className="form-input" placeholder="Ex: IRPF 2025, BPC LOAS..." value={form.service} onChange={e => setForm(p => ({...p, service: e.target.value}))} /></div>
-              <div className="form-field"><label className="form-label">Área</label>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {[['prev','Previdenciário','#E6F1FB','#0C447C','#85B7EC'],['contab','Contabilidade','#EEEDFE','#3C3489','#AFA9EC'],['assess','Cont. | Assessoria','#FAEEDA','#633806','#EF9F27']].map(([v,l,bg,cl,bc]) => (
-                    <div key={v} onClick={() => setForm(p => ({...p, area: v}))} style={{ padding:'7px 13px', border:`0.5px solid ${form.area === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: form.area === v ? bg : 'var(--bg-secondary)', color: form.area === v ? cl : 'var(--text-secondary)' }}>{l}</div>
-                  ))}
-                </div>
-              </div>
-              <div className="form-field"><label className="form-label">Prioridade</label>
-                <div style={{ display:'flex', gap:6 }}>
-                  {[['alta','Alta','#FCEBEB','#A32D2D','#F09595'],['media','Média','#FAEEDA','#633806','#EF9F27'],['baixa','Baixa','#EAF3DE','#27500A','#97C459']].map(([v,l,bg,cl,bc]) => (
-                    <div key={v} onClick={() => setForm(p => ({...p, priority: v}))} style={{ flex:1, padding:'8px 0', textAlign:'center', border:`0.5px solid ${form.priority === v ? bc : 'var(--border-medium)'}`, borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:500, background: form.priority === v ? bg : 'var(--bg-secondary)', color: form.priority === v ? cl : 'var(--text-secondary)' }}>{l}</div>
-                  ))}
-                </div>
-              </div>
-              <div className="form-field"><label className="form-label">Responsável</label>
-                <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                  {(['Ellen Maximiano','Andrews Maximiano'] as const).map(r => (
-                    <div key={r} onClick={() => setForm(p => ({...p, resp: r}))} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', border:`0.5px solid ${form.resp === r ? 'var(--purple-400)' : 'var(--border-medium)'}`, borderRadius:'var(--radius-lg)', cursor:'pointer', background: form.resp === r ? 'var(--bg-primary)' : 'var(--bg-secondary)', position:'relative' }}>
-                      {form.resp === r && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, borderRadius:'3px 0 0 3px', background:'var(--purple-600)' }}></div>}
-                      <div className="avatar avatar-md" style={{ background: r === 'Ellen Maximiano' ? '#EEEDFE' : '#FAEEDA', color: r === 'Ellen Maximiano' ? '#3C3489' : '#633806' }}>{r === 'Ellen Maximiano' ? 'EM' : 'AM'}</div>
-                      <span style={{ fontSize:14, fontWeight:500, color: form.resp === r ? 'var(--purple-800)' : 'var(--text-primary)' }}>{r}</span>
-                      <div style={{ marginLeft:'auto', width:18, height:18, borderRadius:'50%', border:`1.5px solid ${form.resp === r ? 'var(--purple-600)' : 'var(--border-medium)'}`, background: form.resp === r ? 'var(--purple-600)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        {form.resp === r && <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--purple-50)' }}></div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveTask}>Criar tarefa</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Detalhe / Editar Tarefa */}
-      {detailTask && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setDetailTask(null); setEditMode(false); setConfirmDelete(false) } }}>
-          <div className="modal-box">
-            <div className="modal-header">
-              <div className="modal-title">{editMode ? 'Editar tarefa' : 'Detalhes da tarefa'}</div>
-              <button className="btn btn-icon btn-ghost" onClick={() => { setDetailTask(null); setEditMode(false); setConfirmDelete(false) }}>✕</button>
-            </div>
-            <div className="modal-body">
-              {editMode ? renderEditForm() : (
-                <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                  <div>
-                    <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Tarefa</div>
-                    <div style={{ fontSize:15, fontWeight:500 }}>{detailTask.title}</div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Status</div>
-                      <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:20, fontSize:12, fontWeight:500, background: detailTask.done ? '#EAF3DE' : '#FFF8E6', color: detailTask.done ? '#27500A' : '#633806' }}>
-                        <div style={{ width:6, height:6, borderRadius:'50%', background: detailTask.done ? '#639922' : '#EF9F27' }}></div>
-                        {detailTask.done ? 'Concluída' : 'Pendente'}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Data</div>
-                      <div style={{ fontSize:13 }}>{(() => { const dt = new Date(detailTask.date + 'T12:00'); return `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}` })()}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Cliente</div>
-                      <div style={{ fontSize:13 }}>{detailTask.client_name}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Serviço</div>
-                      <div style={{ fontSize:13 }}>{detailTask.service}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Área</div>
-                      <span className={`chip ${detailTask.tipo === 'prev' ? 'chip-p' : detailTask.tipo === 'contab' ? 'chip-c' : detailTask.tipo === 'cliente' ? 'chip-g' : 'chip-i'}`}>{AREA_LABEL[detailTask.tipo] || detailTask.tipo}</span>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Prioridade</div>
-                      <div style={{ display:'inline-flex', padding:'4px 10px', borderRadius:20, fontSize:12, fontWeight:500, background: detailTask.priority === 'alta' ? '#FCEBEB' : detailTask.priority === 'media' ? '#FAEEDA' : '#EAF3DE', color: detailTask.priority === 'alta' ? '#A32D2D' : detailTask.priority === 'media' ? '#633806' : '#27500A' }}>{PRIO_LABEL[detailTask.priority] || detailTask.priority}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize:10, fontWeight:500, color:'var(--text-tertiary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>Responsável</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <div className="avatar avatar-md" style={{ background: detailTask.resp === 'Ellen Maximiano' ? '#EEEDFE' : '#FAEEDA', color: detailTask.resp === 'Ellen Maximiano' ? '#3C3489' : '#633806' }}>{detailTask.resp === 'Ellen Maximiano' ? 'EM' : 'AM'}</div>
-                      <span style={{ fontSize:13, fontWeight:500 }}>{detailTask.resp}</span>
-                    </div>
-                  </div>
-                  {detailTask.sync_group && (
-                    <div style={{ padding:'8px 12px', background:'var(--bg-secondary)', borderRadius:'var(--radius-md)', fontSize:12, color:'var(--text-secondary)' }}>
-                      Tarefa sincronizada (grupo: {detailTask.sync_group.substring(0,8)}...)
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer" style={{ justifyContent: editMode ? 'flex-end' : 'space-between' }}>
-              {!editMode ? (
-                <>
-                  <div style={{ display:'flex', gap:6 }}>
-                    {!confirmDelete ? (
-                      <button className="btn btn-secondary" style={{ color:'#A32D2D', borderColor:'#F09595' }} onClick={() => setConfirmDelete(true)}>Excluir</button>
-                    ) : (
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ fontSize:12, color:'#A32D2D' }}>Confirmar?</span>
-                        <button className="btn btn-secondary" style={{ background:'#FCEBEB', color:'#A32D2D', borderColor:'#F09595', fontSize:12, padding:'6px 12px' }} onClick={handleDelete}>Sim, excluir</button>
-                        <button className="btn btn-secondary" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => setConfirmDelete(false)}>Não</button>
-                      </div>
-                    )}
-                  </div>
-                  <button className="btn btn-primary" onClick={() => setEditMode(true)}>Editar</button>
-                </>
-              ) : (
-                <>
-                  <button className="btn btn-secondary" onClick={() => setEditMode(false)}>Cancelar</button>
-                  <button className="btn btn-primary" onClick={saveEdit}>Salvar alterações</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+      {detail && (
+        <DetailModal
+          task={detail}
+          onClose={() => setDetail(null)}
+          onChangeStatus={onChangeStatus}
+          onDelete={onDelete}
+        />
       )}
     </div>
   )
+}
+
+function FilterChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 12,
+        border: '1px solid ' + (active ? '#0f172a' : '#cbd5e1'),
+        background: active ? '#0f172a' : '#fff',
+        color: active ? '#fff' : '#334155',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function SectionBody({
+  tasks,
+  onToggle,
+  onOpen,
+}: {
+  tasks: Task[]
+  onToggle: (t: Task) => void
+  onOpen: (t: Task) => void
+}) {
+  const { groups, solo } = groupBySync(tasks)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {groups.map((g) => (
+        <div
+          key={g.key}
+          style={{
+            border: '1px dashed #94a3b8',
+            borderRadius: 8,
+            padding: 8,
+            background: '#f8fafc',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: '#475569',
+              letterSpacing: 0.5,
+              marginBottom: 6,
+              fontWeight: 600,
+            }}
+          >
+            SINCRONIZADAS | Via: {g.via.client || '—'}
+            {g.via.atendente ? ` (${g.via.atendente})` : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {g.tasks.map((t) => (
+              <TaskCard key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {solo.map((t) => (
+        <TaskCard key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
+      ))}
+    </div>
+  )
+}
+
+function TaskCard({
+  task,
+  onToggle,
+  onOpen,
+}: {
+  task: Task
+  onToggle: (t: Task) => void
+  onOpen: (t: Task) => void
+}) {
+  const prio = (task as any).priority || 'media'
+  const barColor = PRIORITY_COLOR[prio] || PRIORITY_COLOR.media
+  const isDone = statusOf(task) === 'concluida'
+  const resp = (task as any).resp as string | undefined
+  const tipo = (task as any).tipo as string | undefined
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'stretch',
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 8,
+        overflow: 'hidden',
+        boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+      }}
+    >
+      <div style={{ width: 4, background: barColor }} />
+      <div style={{ flex: 1, padding: '10px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="checkbox"
+            checked={isDone}
+            onChange={() => onToggle(task)}
+            style={{ width: 18, height: 18 }}
+          />
+          <button
+            onClick={() => onOpen(task)}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              flex: 1,
+              textDecoration: isDone ? 'line-through' : 'none',
+              color: isDone ? '#94a3b8' : '#0f172a',
+              fontWeight: 500,
+            }}
+          >
+            {task.title}
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          {task.client_name && <Chip>{task.client_name}</Chip>}
+          {resp && <Chip className={chipResp ? chipResp(resp) : ''}>{resp}</Chip>}
+          {tipo && <Chip>{TIPO_LABEL ? TIPO_LABEL[tipo] || tipo : tipo}</Chip>}
+          {task.sync_group && <Chip>Sync</Chip>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Chip({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <span
+      className={className}
+      style={{
+        fontSize: 11,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: '#f1f5f9',
+        color: '#334155',
+        border: '1px solid #e2e8f0',
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function NewTaskForm({
+  date,
+  clients,
+  onClose,
+  onSaved,
+}: {
+  date: string
+  clients: Client[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [clientId, setClientId] = useState<string>('')
+  const [resp, setResp] = useState<string>(RESP_ELLEN)
+  const [tipo, setTipo] = useState<string>('prev')
+  const [data, setData] = useState(date)
+  const [priority, setPriority] = useState<'alta' | 'media' | 'baixa'>('media')
+  const [status, setStatus] = useState<StatusKey>('pendente')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      const client = clients.find((c) => String(c.id) === clientId)
+      const payload: any = {
+        title: title.trim(),
+        date: data,
+        priority,
+        status,
+        done: status === 'concluida',
+        notes: notes.trim() || null,
+        resp,
+        tipo,
+        client_id: client ? client.id : null,
+        client_name: client ? client.name : null,
+      }
+      await createTask(payload)
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        zIndex: 50,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 10,
+          padding: 18,
+          width: '100%',
+          maxWidth: 480,
+          boxShadow: '0 20px 40px rgba(0,0,0,.2)',
+        }}
+      >
+        <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18 }}>Nova tarefa</h3>
+
+        <Field label="Título">
+          <input
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            autoFocus
+            style={fieldStyle}
+          />
+        </Field>
+
+        <Field label="Cliente">
+          <select
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            style={fieldStyle}
+          >
+            <option value="">—</option>
+            {clients.map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Responsável">
+            <select value={resp} onChange={(e) => setResp(e.target.value)} style={fieldStyle}>
+              <option value={RESP_ELLEN}>Ellen</option>
+              <option value={RESP_ANDREWS}>Andrews</option>
+              <option value={RESP_SUPORTE}>Suporte</option>
+            </select>
+          </Field>
+          <Field label="Área">
+            <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={fieldStyle}>
+              <option value="prev">Previdenciário</option>
+              <option value="contab">Contabilidade</option>
+            </select>
+          </Field>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Data">
+            <input
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+              style={fieldStyle}
+            />
+          </Field>
+          <Field label="Prioridade">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as any)}
+              style={fieldStyle}
+            >
+              <option value="alta">Alta</option>
+              <option value="media">Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </Field>
+        </div>
+
+        <Field label="Status">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StatusKey)}
+            style={fieldStyle}
+          >
+            <option value="pendente">Pendente</option>
+            <option value="aguardando">Aguardando cliente</option>
+            <option value="concluida">Concluída</option>
+          </select>
+        </Field>
+
+        <Field label="Observações">
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            style={{ ...fieldStyle, resize: 'vertical' }}
+          />
+        </Field>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+          <button className="btn" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" onClick={save} disabled={saving || !title.trim()}>
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailModal({
+  task,
+  onClose,
+  onChangeStatus,
+  onDelete,
+}: {
+  task: Task
+  onClose: () => void
+  onChangeStatus: (t: Task, s: StatusKey) => void
+  onDelete: (t: Task) => void
+}) {
+  const s = statusOf(task)
+  const notes = (task as any).notes as string | undefined
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        zIndex: 50,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 10,
+          padding: 18,
+          width: '100%',
+          maxWidth: 460,
+          boxShadow: '0 20px 40px rgba(0,0,0,.2)',
+        }}
+      >
+        <h3 style={{ margin: 0, marginBottom: 10, fontSize: 18 }}>{task.title}</h3>
+        <div style={{ fontSize: 13, color: '#475569', marginBottom: 10 }}>
+          {task.client_name && <div>Cliente: {task.client_name}</div>}
+          {(task as any).resp && <div>Responsável: {(task as any).resp}</div>}
+          {(task as any).tipo && (
+            <div>Área: {TIPO_LABEL ? TIPO_LABEL[(task as any).tipo] : (task as any).tipo}</div>
+          )}
+          <div>Data: {fmtDate ? fmtDate(task.date) : task.date}</div>
+          <div>Prioridade: {(task as any).priority || 'media'}</div>
+        </div>
+
+        {notes && (
+          <div
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: 10,
+              fontSize: 13,
+              whiteSpace: 'pre-wrap',
+              marginBottom: 10,
+            }}
+          >
+            {notes}
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Alterar status:</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {(['pendente', 'aguardando', 'concluida'] as StatusKey[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => onChangeStatus(task, k)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                fontSize: 12,
+                border: '1px solid ' + (s === k ? '#0f172a' : '#cbd5e1'),
+                background: s === k ? '#0f172a' : '#fff',
+                color: s === k ? '#fff' : '#334155',
+                cursor: 'pointer',
+              }}
+            >
+              {STATUS_META[k].label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <button
+            className="btn"
+            onClick={() => onDelete(task)}
+            style={{ color: '#b91c1c' }}
+          >
+            Excluir
+          </button>
+          <button className="btn btn-primary" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block', marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>{label}</div>
+      {children}
+    </label>
+  )
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  borderRadius: 6,
+  border: '1px solid #cbd5e1',
+  fontSize: 14,
+  background: '#fff',
 }
