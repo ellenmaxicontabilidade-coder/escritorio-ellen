@@ -189,7 +189,7 @@ body {
 .badge { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 10px; }
 .badge-pf { background: var(--blue-50); color: var(--blue-800); }
 .badge-pj { background: var(--amber-50); color: var(--amber-800); }
-.badge-rep { background: var(--green-50); color: var(--green-800); }
+.badge-rep { background: var(--green-50); color: var(--green-800); } .badge-repd { background: var(--blue-50); color: var(--blue-800); }
 
 /* --- CARDS --- */
 .card {
