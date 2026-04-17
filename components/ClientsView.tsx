@@ -258,7 +258,7 @@ export default function ClientsView({ showToast }: Props) {
                     {/* MODAL - Novo/Editar cliente */}
                     {showModal && (
                                     <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                                                        <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: '95vw' }}>
+                                                        <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: '95vw' }}>
                                                                                 <div className="modal-header">
                                                                                                             <div className="modal-title">{editingId ? 'Editar cliente' : 'Novo cliente'}</div>
                                                                                                             <button className="btn btn-icon btn-ghost" onClick={() => setShowModal(false)}>&#10005;</button>
@@ -482,7 +482,7 @@ export default function ClientsView({ showToast }: Props) {
                     {/* MODAL - Confirmar exclusao */}
                     {confirmDelete && (
                                     <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
-                                                        <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 420 }}>
+                                                        <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: 420 }}>
                                                                                 <div className="modal-header">
                                                                                                             <div className="modal-title">Excluir cliente</div>
                                                                                                             <button className="btn btn-icon btn-ghost" onClick={() => setConfirmDelete(null)}>&#10005;</button>
