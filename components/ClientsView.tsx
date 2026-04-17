@@ -299,7 +299,8 @@ export default function ClientsView({ showToast }: Props) {
                             <div style={{ fontWeight: 500, fontSize: 14, color: isSelected ? 'var(--primary)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {c.name}
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{c.meta}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{c.badges.join(' - ')}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.cnpj || c.meta}</div>
                             {vs.length > 0 && (
                               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                 {vs.map(v => (
