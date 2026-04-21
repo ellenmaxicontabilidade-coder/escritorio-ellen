@@ -106,7 +106,7 @@ export default function ClientsView({ showToast }: Props) {
   function openEdit(c: Client) {
     const meta = c.meta || ''
     const hasPJ = c.badges.includes('PJ')
-    const cpfGuess = (meta === 'CPF' || meta === 'CPF + CNPJ') ? '' : meta.split('\u00b7')[0].trim()
+    const cpfGuess = c.cpf || ''
     const cnpjGuess = hasPJ ? (c.cnpj || '') : ''
     setForm({ name: c.name, cpf: cpfGuess, cnpj: cnpjGuess, badges: c.badges, obs: c.obs || '' })
     setEditingId(c.id)
@@ -131,6 +131,7 @@ export default function ClientsView({ showToast }: Props) {
     const data = {
       name: form.name.trim(),
       meta: buildMeta(),
+      cpf: form.cpf || null,
       cnpj: form.cnpj || null,
       badges: form.badges,
       obs: form.obs,
