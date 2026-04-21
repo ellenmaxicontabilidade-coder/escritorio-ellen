@@ -31,6 +31,8 @@ export default function ClientsView({ showToast }: Props) {
   const [form, setForm] = useState({ name: '', cpf: '', cnpj: '', badges: [] as Badge[], obs: '' })
   const [pendingVinculos, setPendingVinculos] = useState<PendingVinculo[]>([])
   const [savedVinculos, setSavedVinculos] = useState<Vinculo[]>([])
+  const [showInlineNewClient, setShowInlineNewClient] = useState(false)
+  const [inlineClientForm, setInlineClientForm] = useState({ name: '', badges: [] as Badge[], cpf: '', cnpj: '', obs: '' })
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState<'new' | 'edit'>('new')
@@ -93,6 +95,8 @@ export default function ClientsView({ showToast }: Props) {
     setDrawerOutro('')
     setDrawerSearch('')
     setEditingVinculo(null)
+    setShowInlineNewClient(false)
+    setInlineClientForm({ name: '', badges: [], cpf: '', cnpj: '', obs: '' })
   }
 
   function openNew() { resetForm(); setShowModal(true) }
@@ -162,6 +166,30 @@ export default function ClientsView({ showToast }: Props) {
     const vs = savedVinculos.filter(x => x.id !== v.id)
     setSavedVinculos(vs)
     load()
+  }
+
+  async function handleCreateInlineClient() {
+    const name = inlineClientForm.name.trim()
+    if (!name) return
+    const { bg, cl } = getColor(name)
+    const hasPF = inlineClientForm.badges.includes('PF')
+    const hasPJ = inlineClientForm.badges.includes('PJ')
+    const meta = hasPF && hasPJ ? 'CPF + CNPJ' : hasPF ? 'CPF' : hasPJ ? (inlineClientForm.cnpj || 'CNPJ') : (inlineClientForm.cpf || inlineClientForm.cnpj || '')
+    const created = await createClient({
+      name,
+      meta,
+      cnpj: inlineClientForm.cnpj || null,
+      badges: inlineClientForm.badges,
+      obs: inlineClientForm.obs,
+      av_bg: bg,
+      av_cl: cl,
+    } as any)
+    setClients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+    setDrawerClientId(created.id)
+    setDrawerStep(3)
+    setShowInlineNewClient(false)
+    setInlineClientForm({ name: '', badges: [], cpf: '', cnpj: '', obs: '' })
+    showToast('Cliente cadastrado!', 'success')
   }
 
   function openEditVinculo(v: Vinculo) {
@@ -521,34 +549,91 @@ export default function ClientsView({ showToast }: Props) {
                           <div style={{ fontWeight: 500, marginBottom: 10, fontSize: 13 }}>
                             Selecionar cliente ({drawerTipo === 'rep' ? 'Representante' : 'Representado'})
                           </div>
-                          <input
-                            className="form-input"
-                            placeholder="Buscar cliente..."
-                            value={drawerSearch}
-                            onChange={e => setDrawerSearch(e.target.value)}
-                            autoFocus
-                          />
-                          <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 8 }}>
-                            {clients
-                              .filter(c => !editingId || c.id !== editingId)
-                              .filter(c => !drawerSearch || c.name.toLowerCase().includes(drawerSearch.toLowerCase()))
-                              .map(c => (
-                                <div
-                                  key={c.id}
-                                  onClick={() => { setDrawerClientId(c.id); setDrawerStep(3) }}
-                                  style={{ padding: '8px 10px', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                >
-                                  <div className="avatar" style={{ width: 28, height: 28, fontSize: 11, background: c.av_bg, color: c.av_cl }}>{ini(c.name)}</div>
-                                  <span style={{ fontSize: 13 }}>{c.name}</span>
-                                </div>
-                              ))
-                            }
-                          </div>
+                          {!showInlineNewClient ? (
+                            <>
+                              <input
+                                className="form-input"
+                                placeholder="Buscar cliente..."
+                                value={drawerSearch}
+                                onChange={e => setDrawerSearch(e.target.value)}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ width: '100%', marginTop: 8, justifyContent: 'center', border: '1px dashed var(--border-light)' }}
+                                onClick={() => { setShowInlineNewClient(true); setInlineClientForm({ name: drawerSearch, badges: [], cpf: '', cnpj: '', obs: '' }) }}
+                              >
+                                + Cadastrar novo cliente
+                              </button>
+                              <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 8 }}>
+                                {clients
+                                  .filter(c => !editingId || c.id !== editingId)
+                                  .filter(c => !drawerSearch || c.name.toLowerCase().includes(drawerSearch.toLowerCase()))
+                                  .map(c => (
+                                    <div
+                                      key={c.id}
+                                      onClick={() => { setDrawerClientId(c.id); setDrawerStep(3) }}
+                                      style={{ padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderRadius: 6 }}
+                                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                    >
+                                      <div className="avatar" style={{ width: 28, height: 28, fontSize: 11, background: c.av_bg, color: c.av_cl }}>{ini(c.name)}</div>
+                                      <span style={{ fontSize: 13 }}>{c.name}</span>
+                                    </div>
+                                  ))}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Cadastro rapido de cliente</div>
+                              <input
+                                className="form-input"
+                                placeholder="Nome completo *"
+                                value={inlineClientForm.name}
+                                onChange={e => setInlineClientForm(f => ({ ...f, name: e.target.value }))}
+                                autoFocus
+                              />
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {(['PF', 'PJ'] as Badge[]).map(b => (
+                                  <button
+                                    key={b}
+                                    type="button"
+                                    className={`btn ${inlineClientForm.badges.includes(b) ? 'btn-primary' : 'btn-ghost'}`}
+                                    style={{ fontSize: 12, padding: '4px 10px' }}
+                                    onClick={() => setInlineClientForm(f => ({ ...f, badges: f.badges.includes(b) ? f.badges.filter(x => x !== b) : [...f.badges, b] }))}
+                                  >
+                                    {b}
+                                  </button>
+                                ))}
+                              </div>
+                              {inlineClientForm.badges.includes('PJ') && (
+                                <input
+                                  className="form-input"
+                                  placeholder="CNPJ (opcional)"
+                                  value={inlineClientForm.cnpj}
+                                  onChange={e => setInlineClientForm(f => ({ ...f, cnpj: e.target.value }))}
+                                />
+                              )}
+                              <textarea
+                                className="form-input"
+                                placeholder="Observacoes (opcional)"
+                                rows={2}
+                                value={inlineClientForm.obs}
+                                onChange={e => setInlineClientForm(f => ({ ...f, obs: e.target.value }))}
+                              />
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button type="button" className="btn btn-ghost" onClick={() => { setShowInlineNewClient(false); setInlineClientForm({ name: '', badges: [], cpf: '', cnpj: '', obs: '' }) }}>
+                                  Cancelar
+                                </button>
+                                <button type="button" className="btn btn-primary" disabled={!inlineClientForm.name.trim()} onClick={handleCreateInlineClient}>
+                                  Cadastrar e vincular
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
-
                       {drawerStep === 3 && (
                         <div>
                           <div style={{ fontWeight: 500, marginBottom: 10, fontSize: 13 }}>
