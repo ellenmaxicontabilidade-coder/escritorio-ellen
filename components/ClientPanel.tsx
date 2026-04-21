@@ -123,7 +123,7 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
 
   // Helper: formata pluralizacao de pendencias
   function pendLabel(n: number): string {
-            return `${n} ${n === 1 ? 'Pendência' : 'Pendências'}`
+            return `${n} ${n === 1 ? 'PendÃªncia' : 'PendÃªncias'}`
   }
 
   const tipoBg: Record<string, string> = { prev: '#E6F1FB', contab: '#EEEDFE', assessoria: '#FAEEDA', cliente: '#EAF3DE', interno: 'var(--bg-secondary)' }
@@ -140,7 +140,7 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>{client.name}</div>
                                                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                                                        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span>{client.badges.join(' - ')}</span><span>{client.cnpj || client.cpf || client.meta}</span></span>
+                                                                        <span>{client.cnpj || client.cpf || client.meta}</span>
                                                             {client.badges.map(b => (
                                 <span key={b} className={`badge badge-${b === 'PF' ? 'pf' : b === 'PJ' ? 'pj' : 'rep'}`}>{b}</span>
                               ))}
