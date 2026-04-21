@@ -333,7 +333,7 @@ export default function ClientsView({ showToast }: Props) {
                               {c.name}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{c.badges.join(' - ')}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.cnpj || c.meta}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.cnpj || c.cpf || c.meta}</div>
                             {vs.length > 0 && (
                               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                 {vs.map(v => (
