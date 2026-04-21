@@ -33,6 +33,7 @@ export default function ClientsView({ showToast }: Props) {
   const [savedVinculos, setSavedVinculos] = useState<Vinculo[]>([])
   const [showInlineNewClient, setShowInlineNewClient] = useState(false)
   const [inlineClientForm, setInlineClientForm] = useState({ name: '', badges: [] as Badge[], cpf: '', cnpj: '', obs: '' })
+  const [inlineCreatedClient, setInlineCreatedClient] = useState<Client | null>(null)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState<'new' | 'edit'>('new')
@@ -97,6 +98,7 @@ export default function ClientsView({ showToast }: Props) {
     setEditingVinculo(null)
     setShowInlineNewClient(false)
     setInlineClientForm({ name: '', badges: [], cpf: '', cnpj: '', obs: '' })
+    setInlineCreatedClient(null)
   }
 
   function openNew() { resetForm(); setShowModal(true) }
@@ -185,6 +187,7 @@ export default function ClientsView({ showToast }: Props) {
       av_cl: cl,
     } as any)
     setClients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+    setInlineCreatedClient(created)
     setDrawerClientId(created.id)
     setDrawerStep(3)
     setShowInlineNewClient(false)
@@ -243,7 +246,7 @@ export default function ClientsView({ showToast }: Props) {
       return
     }
 
-    const linked = clients.find(c => c.id === drawerClientId)
+    const linked = clients.find(c => c.id === drawerClientId) || (inlineCreatedClient && inlineCreatedClient.id === drawerClientId ? inlineCreatedClient : null)
     if (!linked) return
     setPendingVinculos(prev => [...prev, {
       linked_id: linked.id,
