@@ -186,10 +186,31 @@ body {
 .chip-label { background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); }
 
 /* --- BADGES --- */
-.badge { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 10px; }
-.badge-pf { background: var(--blue-50); color: var(--blue-800); }
-.badge-pj { background: var(--amber-50); color: var(--amber-800); }
-.badge-rep { background: var(--green-50); color: var(--green-800); } .badge-repd { background: var(--blue-50); color: var(--blue-800); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+/* Azul para Pessoa Fisica e Representado */
+.badge-pf,
+.badge-repd {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-color: #BFDBFE;
+}
+/* Verde para Pessoa Juridica e Representante */
+.badge-pj,
+.badge-rep {
+  background: #ECFDF5;
+  color: #047857;
+  border-color: #A7F3D0;
+}
 
 /* --- CARDS --- */
 .card {
