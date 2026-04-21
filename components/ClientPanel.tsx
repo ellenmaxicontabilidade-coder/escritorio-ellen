@@ -299,7 +299,7 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
                             <div className="card border-0 shadow-sm">
                                     <div className="card-body text-center py-4">
                                               <div className="spinner-border text-primary" role="status">
-                                                          <span className="visually-hidden">Carregando...</span
+                                                          <span className="visually-hidden">Carregando...</span>
                                               </div>
                                     </div>
                             </div>
