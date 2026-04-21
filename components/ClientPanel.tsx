@@ -123,7 +123,7 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
 
   // Helper: formata pluralizacao de pendencias
   function pendLabel(n: number): string {
-            return `${n} ${n === 1 ? 'PendÃªncia' : 'PendÃªncias'}`
+            return `${n} ${n === 1 ? 'Pendência' : 'Pendências'}`
   }
 
   const tipoBg: Record<string, string> = { prev: '#E6F1FB', contab: '#EEEDFE', assessoria: '#FAEEDA', cliente: '#EAF3DE', interno: 'var(--bg-secondary)' }
