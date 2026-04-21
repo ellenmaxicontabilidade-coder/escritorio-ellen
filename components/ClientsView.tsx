@@ -181,6 +181,7 @@ export default function ClientsView({ showToast }: Props) {
       name,
       meta,
       cnpj: inlineClientForm.cnpj || null,
+      cpf: inlineClientForm.cpf || null,
       badges: inlineClientForm.badges,
       obs: inlineClientForm.obs,
       av_bg: bg,
@@ -610,6 +611,14 @@ export default function ClientsView({ showToast }: Props) {
                                   </button>
                                 ))}
                               </div>
+                              {inlineClientForm.badges.includes('PF') && (
+                                <input
+                                      className="form-input"
+                                      placeholder="CPF (opcional)"
+                                      value={inlineClientForm.cpf}
+                                      onChange={e => setInlineClientForm(f => ({ ...f, cpf: e.target.value }))}
+                                    />
+                              )}
                               {inlineClientForm.badges.includes('PJ') && (
                                 <input
                                   className="form-input"
