@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Client, Service, Subtask, Comment, Task, Vinculo, TipoVinculo } from './types'
+import type { Client, Service, Subtask, Comment, Task, Vinculo, TipoVinculo } from './type, ChecklistItem } from './types'
 
 // CLIENTS
 export async function getClients(): Promise<Client[]> {
@@ -374,5 +374,66 @@ export async function toggleSubtaskWithSync(id: string, done: boolean): Promise<
 }
 
 export function makeSyncGroup(prefix: string = 'sg'): string {
+  // ==== SERVICES extras ====
+  export async function updateService(id: string, updates: Partial<Service>): Promise<Service> {
+      const { data, error } = await supabase
+        .from('services')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+  }
+
+  export async function deleteService(id: string): Promise<void> {
+      // Em cascata: apagar subtasks (e checklist_items via ON DELETE CASCADE) e comments
+      const { data: subs } = await supabase.from('subtasks').select('id').eq('service_id', id)
+      if (subs && subs.length) {
+            const ids = subs.map(s => s.id)
+            await supabase.from('comments').delete().in('subtask_id', ids)
+            await supabase.from('checklist_items').delete().in('subtask_id', ids)
+            await supabase.from('subtasks').delete().eq('service_id', id)
+      }
+      const { error } = await supabase.from('services').delete().eq('id', id)
+      if (error) throw error
+  }
+
+  // ==== CHECKLIST ITEMS (Subtarefas) ====
+  export async function getChecklistItemsBySubtask(subtaskId: string): Promise<ChecklistItem[]> {
+      const { data, error } = await supabase
+        .from('checklist_items')
+        .select('*')
+        .eq('subtask_id', subtaskId)
+        .order('created_at')
+      if (error) throw error
+      return data || []
+  }
+
+  export async function createChecklistItem(item: Omit<ChecklistItem, 'id' | 'created_at'>): Promise<ChecklistItem> {
+      const { data, error } = await supabase
+        .from('checklist_items')
+        .insert(item)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+  }
+
+  export async function updateChecklistItem(id: string, updates: Partial<ChecklistItem>): Promise<ChecklistItem> {
+      const { data, error } = await supabase
+        .from('checklist_items')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+  }
+
+  export async function deleteChecklistItem(id: string): Promise<void> {
+      const { error } = await supabase.from('checklist_items').delete().eq('id', id)
+      if (error) throw error
+  }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
