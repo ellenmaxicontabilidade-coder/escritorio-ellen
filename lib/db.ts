@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-,mport type { Client, Service, Subtask, Comment, Task, Vinculo, TipoVinculo } from './type, ChecklistItem } from './types'
+import type { Client, Service, Subtask, Comment, Task, Vinculo, TipoVinculo, ChecklistItem } from './types'
 
 // CLIENTS
 export async function getClients(): Promise<Client[]> {
