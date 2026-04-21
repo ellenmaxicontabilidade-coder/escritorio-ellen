@@ -9,6 +9,7 @@ export interface Client {
     name: string
     meta: string
     cnpj?: string
+    cpf?: string
     badges: Badge[]
     obs: string
     av_bg: string
