@@ -895,4 +895,4 @@ export default function ClientPanel({ client, onEdit, onDelete, showToast }: Pro
                             </div>
                       </div>
                     )
-}</div>
+}
